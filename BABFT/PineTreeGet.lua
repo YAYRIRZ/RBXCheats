@@ -1,578 +1,507 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
-local SHOP_ITEMS = {
-	{
-		Id = "PineTree",          -- id, который отправляется на сервер
-		Name = "Сосна (PineTree)",-- отображаемое имя
-		Price = 80,               -- цена за 1 штуку
-		Currency = "Gold",        -- название валюты (только отображение)
-		Icon = "rbxassetid://0",  -- можно вставить свой assetId иконки ёлки
-	},
-}
+local ITEM_ID = "PineTree"
+local ITEM_PRICE = 80
+local CURRENCY = "Gold"
+local MAX_QTY = 999
+local MIN_QTY = 1
 
-local CREDITS_TEXT = "Made by @TheZeroStudio"
+local COLOR_BLACK = Color3.fromRGB(6, 9, 14)
+local COLOR_NAVY_DARK = Color3.fromRGB(11, 18, 32)
+local COLOR_NAVY = Color3.fromRGB(16, 26, 46)
+local COLOR_NAVY_LIGHT = Color3.fromRGB(22, 35, 60)
+local COLOR_BLUE = Color3.fromRGB(45, 130, 245)
+local COLOR_BLUE_BRIGHT = Color3.fromRGB(80, 165, 255)
+local COLOR_BLUE_DIM = Color3.fromRGB(28, 70, 130)
+local COLOR_TEXT = Color3.fromRGB(225, 235, 250)
+local COLOR_TEXT_DIM = Color3.fromRGB(140, 160, 190)
 
-local function round(x)
-	return math.floor(x + 0.5)
-end
-
-local function formatNumber(n)
-	local formatted = tostring(math.floor(n))
-	local k
-	repeat
-		formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", "%1,%2")
-	until k == 0
-	return formatted
-end
-
-local function tween(obj, props, time, style, dir)
-	local ti = TweenInfo.new(time or 0.2, style or Enum.EasingStyle.Quad, dir or Enum.EasingDirection.Out)
-	local t = TweenService:Create(obj, ti, props)
-	t:Play()
-	return t
-end
-
-local function makeCorner(parent, radius)
-	local c = Instance.new("UICorner")
-	c.CornerRadius = UDim.new(0, radius or 10)
-	c.Parent = parent
-	return c
-end
-
-local function makeStroke(parent, color, thickness, transparency)
-	local s = Instance.new("UIStroke")
-	s.Color = color or Color3.fromRGB(255, 255, 255)
-	s.Thickness = thickness or 1
-	s.Transparency = transparency or 0.7
-	s.Parent = parent
-	return s
-end
-
-local function makeGradient(parent, colorSeq, rotation)
-	local g = Instance.new("UIGradient")
-	g.Color = colorSeq
-	g.Rotation = rotation or 90
-	g.Parent = parent
-	return g
-end
-
-local oldGui = playerGui:FindFirstChild("TreeShopGui")
+local oldGui = playerGui:FindFirstChild("PineTreeShopGui")
 if oldGui then
 	oldGui:Destroy()
 end
 
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "TreeShopGui"
+screenGui.Name = "PineTreeShopGui"
 screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.DisplayOrder = 50
 screenGui.Parent = playerGui
 
-local toggleButton = Instance.new("TextButton")
-toggleButton.Name = "ToggleButton"
-toggleButton.Size = UDim2.fromOffset(58, 58)
-toggleButton.Position = UDim2.new(0, 20, 0.5, -29)
-toggleButton.AnchorPoint = Vector2.new(0, 0)
-toggleButton.BackgroundColor3 = Color3.fromRGB(35, 130, 65)
-toggleButton.AutoButtonColor = false
-toggleButton.Text = "🎄"
-toggleButton.TextSize = 28
-toggleButton.Font = Enum.Font.GothamBold
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.ZIndex = 10
-toggleButton.Parent = screenGui
-makeCorner(toggleButton, 29)
-makeStroke(toggleButton, Color3.fromRGB(255, 255, 255), 2, 0.5)
+local function corner(parent, radius)
+	local c = Instance.new("UICorner")
+	c.CornerRadius = UDim.new(0, radius)
+	c.Parent = parent
+	return c
+end
+
+local function stroke(parent, color, thickness, transparency)
+	local s = Instance.new("UIStroke")
+	s.Color = color
+	s.Thickness = thickness
+	s.Transparency = transparency or 0
+	s.Parent = parent
+	return s
+end
+
+local function gradient(parent, sequence, rotation)
+	local g = Instance.new("UIGradient")
+	g.Color = sequence
+	g.Rotation = rotation or 90
+	g.Parent = parent
+	return g
+end
+
+local function tween(obj, props, time)
+	local ti = TweenInfo.new(time or 0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	local t = TweenService:Create(obj, ti, props)
+	t:Play()
+	return t
+end
+
+local NORMAL_SIZE = UDim2.fromOffset(320, 320)
+local MAXIMIZED_SIZE = UDim2.fromOffset(440, 420)
+local MINIMIZED_SIZE = UDim2.fromOffset(320, 40)
 
 local mainFrame = Instance.new("Frame")
 mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.fromOffset(380, 420)
-mainFrame.Position = UDim2.new(0.5, -190, 0.5, -210)
-mainFrame.BackgroundColor3 = Color3.fromRGB(24, 28, 26)
+mainFrame.Size = NORMAL_SIZE
+mainFrame.Position = UDim2.new(0.5, -160, 0.5, -160)
+mainFrame.BackgroundColor3 = COLOR_NAVY_DARK
 mainFrame.BorderSizePixel = 0
-mainFrame.Visible = false
 mainFrame.ClipsDescendants = true
 mainFrame.Parent = screenGui
-makeCorner(mainFrame, 16)
-makeStroke(mainFrame, Color3.fromRGB(60, 200, 110), 1.5, 0.4)
+corner(mainFrame, 18)
+stroke(mainFrame, COLOR_BLUE_DIM, 1, 0.3)
 
 local titleBar = Instance.new("Frame")
 titleBar.Name = "TitleBar"
-titleBar.Size = UDim2.new(1, 0, 0, 54)
-titleBar.BackgroundColor3 = Color3.fromRGB(20, 60, 35)
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.BackgroundColor3 = COLOR_BLACK
 titleBar.BorderSizePixel = 0
 titleBar.Parent = mainFrame
-makeCorner(titleBar, 16)
-makeGradient(titleBar, ColorSequence.new({
-	ColorSequenceKeypoint.new(0, Color3.fromRGB(20, 90, 45)),
-	ColorSequenceKeypoint.new(1, Color3.fromRGB(15, 50, 30)),
+corner(titleBar, 18)
+gradient(titleBar, ColorSequence.new({
+	ColorSequenceKeypoint.new(0, COLOR_NAVY),
+	ColorSequenceKeypoint.new(1, COLOR_BLACK),
 }), 0)
 
-local titleBarFix = Instance.new("Frame")
-titleBarFix.Size = UDim2.new(1, 0, 0, 16)
-titleBarFix.Position = UDim2.new(0, 0, 1, -16)
-titleBarFix.BackgroundColor3 = titleBar.BackgroundColor3
-titleBarFix.BorderSizePixel = 0
-titleBarFix.ZIndex = 1
-titleBarFix.Parent = titleBar
+local titleBarMask = Instance.new("Frame")
+titleBarMask.Size = UDim2.new(1, 0, 0, 18)
+titleBarMask.Position = UDim2.new(0, 0, 1, -18)
+titleBarMask.BackgroundColor3 = COLOR_BLACK
+titleBarMask.BorderSizePixel = 0
+titleBarMask.ZIndex = 1
+titleBarMask.Parent = titleBar
+gradient(titleBarMask, ColorSequence.new({
+	ColorSequenceKeypoint.new(0, COLOR_NAVY),
+	ColorSequenceKeypoint.new(1, COLOR_BLACK),
+}), 0)
+
+local titleIcon = Instance.new("Frame")
+titleIcon.Size = UDim2.fromOffset(6, 20)
+titleIcon.Position = UDim2.new(0, 14, 0.5, -10)
+titleIcon.BackgroundColor3 = COLOR_BLUE
+titleIcon.BorderSizePixel = 0
+titleIcon.ZIndex = 2
+titleIcon.Parent = titleBar
+corner(titleIcon, 3)
 
 local titleLabel = Instance.new("TextLabel")
 titleLabel.BackgroundTransparency = 1
-titleLabel.Size = UDim2.new(1, -100, 1, 0)
-titleLabel.Position = UDim2.new(0, 16, 0, 0)
-titleLabel.Text = "🎄 Магазин Ёлок"
+titleLabel.Size = UDim2.new(1, -170, 1, 0)
+titleLabel.Position = UDim2.new(0, 28, 0, 0)
+titleLabel.Text = "PINE TREE SHOP"
 titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 20
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 14
+titleLabel.TextColor3 = COLOR_TEXT
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.ZIndex = 2
 titleLabel.Parent = titleBar
 
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.fromOffset(34, 34)
-closeButton.Position = UDim2.new(1, -44, 0.5, -17)
-closeButton.BackgroundColor3 = Color3.fromRGB(180, 50, 50)
-closeButton.AutoButtonColor = false
-closeButton.Text = "✕"
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 16
-closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.ZIndex = 2
-closeButton.Parent = titleBar
-makeCorner(closeButton, 8)
+local function makeControlButton(offsetFromRight)
+	local btn = Instance.new("TextButton")
+	btn.Size = UDim2.fromOffset(30, 30)
+	btn.Position = UDim2.new(1, offsetFromRight, 0.5, -15)
+	btn.BackgroundColor3 = COLOR_NAVY_LIGHT
+	btn.BackgroundTransparency = 1
+	btn.AutoButtonColor = false
+	btn.Text = ""
+	btn.ZIndex = 3
+	btn.Parent = titleBar
+	corner(btn, 8)
+	return btn
+end
 
-local scrollFrame = Instance.new("ScrollingFrame")
-scrollFrame.Name = "ItemsScroll"
-scrollFrame.Size = UDim2.new(1, -20, 1, -170)
-scrollFrame.Position = UDim2.new(0, 10, 0, 64)
-scrollFrame.BackgroundTransparency = 1
-scrollFrame.BorderSizePixel = 0
-scrollFrame.ScrollBarThickness = 5
-scrollFrame.ScrollBarImageColor3 = Color3.fromRGB(60, 200, 110)
-scrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-scrollFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
-scrollFrame.Parent = mainFrame
+local closeButton = makeControlButton(-38)
+local maximizeButton = makeControlButton(-72)
+local minimizeButton = makeControlButton(-106)
 
-local listLayout = Instance.new("UIListLayout")
-listLayout.Padding = UDim.new(0, 10)
-listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-listLayout.Parent = scrollFrame
+local function hoverHighlight(btn)
+	btn.MouseEnter:Connect(function()
+		tween(btn, { BackgroundTransparency = 0.85 }, 0.12)
+	end)
+	btn.MouseLeave:Connect(function()
+		tween(btn, { BackgroundTransparency = 1 }, 0.12)
+	end)
+end
 
-local bottomPanel = Instance.new("Frame")
-bottomPanel.Size = UDim2.new(1, -20, 0, 96)
-bottomPanel.Position = UDim2.new(0, 10, 1, -104)
-bottomPanel.BackgroundColor3 = Color3.fromRGB(32, 38, 35)
-bottomPanel.BorderSizePixel = 0
-bottomPanel.Parent = mainFrame
-makeCorner(bottomPanel, 12)
-makeStroke(bottomPanel, Color3.fromRGB(60, 200, 110), 1, 0.6)
+hoverHighlight(closeButton)
+hoverHighlight(maximizeButton)
+hoverHighlight(minimizeButton)
+
+local closeIconA = Instance.new("Frame")
+closeIconA.Size = UDim2.fromOffset(14, 2)
+closeIconA.AnchorPoint = Vector2.new(0.5, 0.5)
+closeIconA.Position = UDim2.fromScale(0.5, 0.5)
+closeIconA.Rotation = 45
+closeIconA.BackgroundColor3 = COLOR_BLUE_BRIGHT
+closeIconA.BorderSizePixel = 0
+closeIconA.ZIndex = 4
+closeIconA.Parent = closeButton
+corner(closeIconA, 1)
+
+local closeIconB = closeIconA:Clone()
+closeIconB.Rotation = -45
+closeIconB.Parent = closeButton
+
+local maximizeIcon = Instance.new("Frame")
+maximizeIcon.Size = UDim2.fromOffset(13, 13)
+maximizeIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+maximizeIcon.Position = UDim2.fromScale(0.5, 0.5)
+maximizeIcon.BackgroundTransparency = 1
+maximizeIcon.ZIndex = 4
+maximizeIcon.Parent = maximizeButton
+corner(maximizeIcon, 2)
+stroke(maximizeIcon, COLOR_BLUE_BRIGHT, 2, 0)
+
+local minimizeIcon = Instance.new("Frame")
+minimizeIcon.Size = UDim2.fromOffset(14, 2)
+minimizeIcon.AnchorPoint = Vector2.new(0.5, 0.5)
+minimizeIcon.Position = UDim2.fromScale(0.5, 0.5)
+minimizeIcon.BackgroundColor3 = COLOR_BLUE_BRIGHT
+minimizeIcon.BorderSizePixel = 0
+minimizeIcon.ZIndex = 4
+minimizeIcon.Parent = minimizeButton
+corner(minimizeIcon, 1)
+
+local bodyFrame = Instance.new("Frame")
+bodyFrame.Name = "Body"
+bodyFrame.Size = UDim2.new(1, 0, 1, -40)
+bodyFrame.Position = UDim2.new(0, 0, 0, 40)
+bodyFrame.BackgroundTransparency = 1
+bodyFrame.Parent = mainFrame
+
+local treeIconFrame = Instance.new("Frame")
+treeIconFrame.Size = UDim2.fromOffset(40, 40)
+treeIconFrame.Position = UDim2.new(0, 20, 0, 20)
+treeIconFrame.BackgroundTransparency = 1
+treeIconFrame.Parent = bodyFrame
+
+local treeTop = Instance.new("Frame")
+treeTop.Size = UDim2.fromOffset(12, 9)
+treeTop.Position = UDim2.new(0.5, -6, 0, 2)
+treeTop.BackgroundColor3 = COLOR_BLUE_BRIGHT
+treeTop.BorderSizePixel = 0
+treeTop.Parent = treeIconFrame
+corner(treeTop, 2)
+
+local treeMid = Instance.new("Frame")
+treeMid.Size = UDim2.fromOffset(20, 9)
+treeMid.Position = UDim2.new(0.5, -10, 0, 10)
+treeMid.BackgroundColor3 = COLOR_BLUE
+treeMid.BorderSizePixel = 0
+treeMid.Parent = treeIconFrame
+corner(treeMid, 2)
+
+local treeBottom = Instance.new("Frame")
+treeBottom.Size = UDim2.fromOffset(28, 9)
+treeBottom.Position = UDim2.new(0.5, -14, 0, 18)
+treeBottom.BackgroundColor3 = COLOR_BLUE_DIM
+treeBottom.BorderSizePixel = 0
+treeBottom.Parent = treeIconFrame
+corner(treeBottom, 2)
+
+local treeTrunk = Instance.new("Frame")
+treeTrunk.Size = UDim2.fromOffset(6, 8)
+treeTrunk.Position = UDim2.new(0.5, -3, 0, 27)
+treeTrunk.BackgroundColor3 = COLOR_NAVY_LIGHT
+treeTrunk.BorderSizePixel = 0
+treeTrunk.Parent = treeIconFrame
+corner(treeTrunk, 2)
+
+local itemNameLabel = Instance.new("TextLabel")
+itemNameLabel.BackgroundTransparency = 1
+itemNameLabel.Position = UDim2.new(0, 72, 0, 20)
+itemNameLabel.Size = UDim2.new(1, -90, 0, 20)
+itemNameLabel.Text = "PineTree"
+itemNameLabel.Font = Enum.Font.GothamBold
+itemNameLabel.TextSize = 18
+itemNameLabel.TextColor3 = COLOR_TEXT
+itemNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+itemNameLabel.Parent = bodyFrame
+
+local itemPriceLabel = Instance.new("TextLabel")
+itemPriceLabel.BackgroundTransparency = 1
+itemPriceLabel.Position = UDim2.new(0, 72, 0, 42)
+itemPriceLabel.Size = UDim2.new(1, -90, 0, 18)
+itemPriceLabel.Text = ITEM_PRICE .. " " .. CURRENCY .. " / шт."
+itemPriceLabel.Font = Enum.Font.Gotham
+itemPriceLabel.TextSize = 13
+itemPriceLabel.TextColor3 = COLOR_TEXT_DIM
+itemPriceLabel.TextXAlignment = Enum.TextXAlignment.Left
+itemPriceLabel.Parent = bodyFrame
+
+local divider = Instance.new("Frame")
+divider.Size = UDim2.new(1, -40, 0, 1)
+divider.Position = UDim2.new(0, 20, 0, 76)
+divider.BackgroundColor3 = COLOR_NAVY_LIGHT
+divider.BorderSizePixel = 0
+divider.Parent = bodyFrame
 
 local qtyLabel = Instance.new("TextLabel")
 qtyLabel.BackgroundTransparency = 1
-qtyLabel.Position = UDim2.new(0, 12, 0, 8)
-qtyLabel.Size = UDim2.new(0, 200, 0, 18)
-qtyLabel.Text = "Количество для покупки:"
+qtyLabel.Position = UDim2.new(0, 20, 0, 92)
+qtyLabel.Size = UDim2.new(1, -40, 0, 18)
+qtyLabel.Text = "Количество (1 - " .. MAX_QTY .. ")"
 qtyLabel.Font = Enum.Font.Gotham
 qtyLabel.TextSize = 13
-qtyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+qtyLabel.TextColor3 = COLOR_TEXT_DIM
 qtyLabel.TextXAlignment = Enum.TextXAlignment.Left
-qtyLabel.Parent = bottomPanel
+qtyLabel.Parent = bodyFrame
 
 local qtyRow = Instance.new("Frame")
+qtyRow.Position = UDim2.new(0, 20, 0, 116)
+qtyRow.Size = UDim2.new(1, -40, 0, 40)
 qtyRow.BackgroundTransparency = 1
-qtyRow.Position = UDim2.new(0, 12, 0, 28)
-qtyRow.Size = UDim2.new(0, 150, 0, 34)
-qtyRow.Parent = bottomPanel
+qtyRow.Parent = bodyFrame
 
-local function makeStepButton(text, posX)
-	local b = Instance.new("TextButton")
-	b.Size = UDim2.fromOffset(34, 34)
-	b.Position = UDim2.new(0, posX, 0, 0)
-	b.BackgroundColor3 = Color3.fromRGB(50, 60, 55)
-	b.AutoButtonColor = false
-	b.Text = text
-	b.Font = Enum.Font.GothamBold
-	b.TextSize = 18
-	b.TextColor3 = Color3.fromRGB(255, 255, 255)
-	b.Parent = qtyRow
-	makeCorner(b, 8)
-	return b
-end
+local minusButton = Instance.new("TextButton")
+minusButton.Size = UDim2.fromOffset(40, 40)
+minusButton.Position = UDim2.new(0, 0, 0, 0)
+minusButton.BackgroundColor3 = COLOR_NAVY
+minusButton.AutoButtonColor = false
+minusButton.Text = "-"
+minusButton.Font = Enum.Font.GothamBold
+minusButton.TextSize = 22
+minusButton.TextColor3 = COLOR_TEXT
+minusButton.Parent = qtyRow
+corner(minusButton, 10)
+stroke(minusButton, COLOR_BLUE_DIM, 1, 0.4)
 
-local minusBtn = makeStepButton("-", 0)
 local qtyBox = Instance.new("TextBox")
-qtyBox.Size = UDim2.fromOffset(74, 34)
-qtyBox.Position = UDim2.new(0, 38, 0, 0)
-qtyBox.BackgroundColor3 = Color3.fromRGB(20, 24, 22)
+qtyBox.Size = UDim2.new(1, -160, 1, 0)
+qtyBox.Position = UDim2.new(0, 50, 0, 0)
+qtyBox.BackgroundColor3 = COLOR_NAVY
 qtyBox.Text = "1"
 qtyBox.Font = Enum.Font.GothamBold
-qtyBox.TextSize = 16
-qtyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+qtyBox.TextSize = 18
+qtyBox.TextColor3 = COLOR_TEXT
 qtyBox.ClearTextOnFocus = false
 qtyBox.PlaceholderText = "1"
 qtyBox.Parent = qtyRow
-makeCorner(qtyBox, 8)
-makeStroke(qtyBox, Color3.fromRGB(60, 200, 110), 1, 0.6)
+corner(qtyBox, 10)
+stroke(qtyBox, COLOR_BLUE_DIM, 1, 0.4)
 
-local plusBtn = makeStepButton("+", 116)
+local plusButton = Instance.new("TextButton")
+plusButton.Size = UDim2.fromOffset(40, 40)
+plusButton.Position = UDim2.new(1, -40, 0, 0)
+plusButton.BackgroundColor3 = COLOR_NAVY
+plusButton.AutoButtonColor = false
+plusButton.Text = "+"
+plusButton.Font = Enum.Font.GothamBold
+plusButton.TextSize = 22
+plusButton.TextColor3 = COLOR_TEXT
+plusButton.Parent = qtyRow
+corner(plusButton, 10)
+stroke(plusButton, COLOR_BLUE_DIM, 1, 0.4)
 
-local presetRow = Instance.new("Frame")
-presetRow.BackgroundTransparency = 1
-presetRow.Position = UDim2.new(0, 172, 0, 28)
-presetRow.Size = UDim2.new(1, -184, 0, 34)
-presetRow.Parent = bottomPanel
-
-local presetLayout = Instance.new("UIListLayout")
-presetLayout.FillDirection = Enum.FillDirection.Horizontal
-presetLayout.Padding = UDim.new(0, 6)
-presetLayout.SortOrder = Enum.SortOrder.LayoutOrder
-presetLayout.Parent = presetRow
-
-local presetValues = { 1, 5, 10, 25 }
-for _, v in ipairs(presetValues) do
-	local pb = Instance.new("TextButton")
-	pb.Size = UDim2.new(0, 40, 1, 0)
-	pb.BackgroundColor3 = Color3.fromRGB(45, 90, 60)
-	pb.AutoButtonColor = false
-	pb.Text = "x" .. v
-	pb.Font = Enum.Font.GothamBold
-	pb.TextSize = 13
-	pb.TextColor3 = Color3.fromRGB(255, 255, 255)
-	pb.Parent = presetRow
-	makeCorner(pb, 8)
-	pb.MouseButton1Click:Connect(function()
-		qtyBox.Text = tostring(v)
+local function hoverColor(btn, from, to)
+	btn.MouseEnter:Connect(function()
+		tween(btn, { BackgroundColor3 = to }, 0.12)
+	end)
+	btn.MouseLeave:Connect(function()
+		tween(btn, { BackgroundColor3 = from }, 0.12)
 	end)
 end
+
+hoverColor(minusButton, COLOR_NAVY, COLOR_NAVY_LIGHT)
+hoverColor(plusButton, COLOR_NAVY, COLOR_NAVY_LIGHT)
+
+local totalLabel = Instance.new("TextLabel")
+totalLabel.BackgroundTransparency = 1
+totalLabel.Position = UDim2.new(0, 20, 0, 164)
+totalLabel.Size = UDim2.new(1, -40, 0, 20)
+totalLabel.Text = "Итого: " .. ITEM_PRICE .. " " .. CURRENCY
+totalLabel.Font = Enum.Font.GothamMedium
+totalLabel.TextSize = 14
+totalLabel.TextColor3 = COLOR_BLUE_BRIGHT
+totalLabel.TextXAlignment = Enum.TextXAlignment.Left
+totalLabel.Parent = bodyFrame
+
+local buyButton = Instance.new("TextButton")
+buyButton.Size = UDim2.new(1, -40, 0, 46)
+buyButton.Position = UDim2.new(0, 20, 0, 196)
+buyButton.BackgroundColor3 = COLOR_BLUE
+buyButton.AutoButtonColor = false
+buyButton.Text = "Купить"
+buyButton.Font = Enum.Font.GothamBold
+buyButton.TextSize = 16
+buyButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+buyButton.Parent = bodyFrame
+corner(buyButton, 12)
+gradient(buyButton, ColorSequence.new({
+	ColorSequenceKeypoint.new(0, COLOR_BLUE_BRIGHT),
+	ColorSequenceKeypoint.new(1, COLOR_BLUE),
+}), 90)
+
+buyButton.MouseEnter:Connect(function()
+	tween(buyButton, { BackgroundColor3 = COLOR_BLUE_BRIGHT }, 0.12)
+end)
+buyButton.MouseLeave:Connect(function()
+	tween(buyButton, { BackgroundColor3 = COLOR_BLUE }, 0.12)
+end)
 
 local statusLabel = Instance.new("TextLabel")
 statusLabel.BackgroundTransparency = 1
-statusLabel.Position = UDim2.new(0, 12, 1, -28)
-statusLabel.Size = UDim2.new(1, -24, 0, 18)
+statusLabel.Position = UDim2.new(0, 20, 0, 248)
+statusLabel.Size = UDim2.new(1, -40, 0, 18)
 statusLabel.Text = ""
 statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextSize = 12
-statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+statusLabel.TextColor3 = COLOR_TEXT_DIM
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-statusLabel.Parent = bottomPanel
+statusLabel.Parent = bodyFrame
 
 local creditsLabel = Instance.new("TextLabel")
-creditsLabel.Name = "Credits"
 creditsLabel.BackgroundTransparency = 1
+creditsLabel.Position = UDim2.new(0, 0, 1, -22)
 creditsLabel.Size = UDim2.new(1, 0, 0, 16)
-creditsLabel.Position = UDim2.new(0, 0, 1, 2)
-creditsLabel.Text = CREDITS_TEXT
+creditsLabel.Text = "Made by @TheZeroStudio"
 creditsLabel.Font = Enum.Font.GothamMedium
 creditsLabel.TextSize = 11
-creditsLabel.TextColor3 = Color3.fromRGB(90, 200, 130)
-creditsLabel.TextTransparency = 0.15
-creditsLabel.Parent = mainFrame
+creditsLabel.TextColor3 = COLOR_BLUE_DIM
+creditsLabel.TextXAlignment = Enum.TextXAlignment.Center
+creditsLabel.Parent = bodyFrame
 
-local selectedItem = SHOP_ITEMS[1]
-
-local itemCards = {}
-local buyCurrentSelectionRef
-
-local function selectItem(item, card)
-	selectedItem = item
-	for _, c in pairs(itemCards) do
-		c.Stroke.Transparency = 0.6
-		c.Stroke.Color = Color3.fromRGB(255, 255, 255)
-		c.Frame.BackgroundColor3 = Color3.fromRGB(36, 42, 39)
+local function clampQty(n)
+	if n < MIN_QTY then
+		return MIN_QTY
+	elseif n > MAX_QTY then
+		return MAX_QTY
 	end
-	card.Stroke.Transparency = 0
-	card.Stroke.Color = Color3.fromRGB(90, 220, 130)
-	card.Frame.BackgroundColor3 = Color3.fromRGB(30, 55, 38)
+	return math.floor(n)
 end
-
-for i, item in ipairs(SHOP_ITEMS) do
-	local card = Instance.new("Frame")
-	card.Name = item.Id
-	card.Size = UDim2.new(1, -6, 0, 84)
-	card.BackgroundColor3 = Color3.fromRGB(36, 42, 39)
-	card.BorderSizePixel = 0
-	card.LayoutOrder = i
-	card.Parent = scrollFrame
-	makeCorner(card, 12)
-	local stroke = makeStroke(card, Color3.fromRGB(255, 255, 255), 1.5, 0.6)
-
-	local icon = Instance.new("ImageLabel")
-	icon.Size = UDim2.fromOffset(60, 60)
-	icon.Position = UDim2.new(0, 12, 0.5, -30)
-	icon.BackgroundColor3 = Color3.fromRGB(20, 60, 35)
-	icon.Image = item.Icon or ""
-	icon.ScaleType = Enum.ScaleType.Fit
-	icon.Parent = card
-	makeCorner(icon, 10)
-
-	local iconFallback = Instance.new("TextLabel")
-	iconFallback.BackgroundTransparency = 1
-	iconFallback.Size = UDim2.fromScale(1, 1)
-	iconFallback.Text = "🎄"
-	iconFallback.TextSize = 30
-	iconFallback.Font = Enum.Font.GothamBold
-	iconFallback.TextColor3 = Color3.fromRGB(255, 255, 255)
-	iconFallback.Parent = icon
-
-	local nameLabel = Instance.new("TextLabel")
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Position = UDim2.new(0, 84, 0, 12)
-	nameLabel.Size = UDim2.new(1, -190, 0, 22)
-	nameLabel.Text = item.Name
-	nameLabel.Font = Enum.Font.GothamBold
-	nameLabel.TextSize = 16
-	nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	nameLabel.Parent = card
-
-	local priceLabel = Instance.new("TextLabel")
-	priceLabel.BackgroundTransparency = 1
-	priceLabel.Position = UDim2.new(0, 84, 0, 36)
-	priceLabel.Size = UDim2.new(1, -190, 0, 20)
-	priceLabel.Text = string.format("💰 %s %s / шт.", formatNumber(item.Price), item.Currency)
-	priceLabel.Font = Enum.Font.Gotham
-	priceLabel.TextSize = 14
-	priceLabel.TextColor3 = Color3.fromRGB(255, 210, 90)
-	priceLabel.TextXAlignment = Enum.TextXAlignment.Left
-	priceLabel.Parent = card
-
-	local totalLabel = Instance.new("TextLabel")
-	totalLabel.Name = "TotalLabel"
-	totalLabel.BackgroundTransparency = 1
-	totalLabel.Position = UDim2.new(0, 84, 0, 58)
-	totalLabel.Size = UDim2.new(1, -190, 0, 18)
-	totalLabel.Text = "Итого: " .. formatNumber(item.Price) .. " " .. item.Currency
-	totalLabel.Font = Enum.Font.GothamMedium
-	totalLabel.TextSize = 12
-	totalLabel.TextColor3 = Color3.fromRGB(160, 220, 180)
-	totalLabel.TextXAlignment = Enum.TextXAlignment.Left
-	totalLabel.Parent = card
-
-	local buyBtn = Instance.new("TextButton")
-	buyBtn.Size = UDim2.fromOffset(84, 40)
-	buyBtn.Position = UDim2.new(1, -96, 0.5, -20)
-	buyBtn.BackgroundColor3 = Color3.fromRGB(45, 160, 90)
-	buyBtn.AutoButtonColor = false
-	buyBtn.Text = "Купить"
-	buyBtn.Font = Enum.Font.GothamBold
-	buyBtn.TextSize = 15
-	buyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	buyBtn.Parent = card
-	makeCorner(buyBtn, 10)
-
-	itemCards[item.Id] = { Frame = card, Stroke = stroke, TotalLabel = totalLabel }
-
-	card.MouseEnter:Connect(function()
-		if selectedItem ~= item then
-			tween(card, { BackgroundColor3 = Color3.fromRGB(42, 50, 46) }, 0.15)
-		end
-	end)
-	card.MouseLeave:Connect(function()
-		if selectedItem ~= item then
-			tween(card, { BackgroundColor3 = Color3.fromRGB(36, 42, 39) }, 0.15)
-		end
-	end)
-
-	local selectDetector = Instance.new("TextButton")
-	selectDetector.BackgroundTransparency = 1
-	selectDetector.Size = UDim2.new(1, -96, 1, 0)
-	selectDetector.Text = ""
-	selectDetector.ZIndex = 0
-	selectDetector.Parent = card
-	selectDetector.MouseButton1Click:Connect(function()
-		selectItem(item, itemCards[item.Id])
-	end)
-
-	buyBtn.MouseButton1Click:Connect(function()
-		selectItem(item, itemCards[item.Id])
-		buyCurrentSelectionRef(item)
-	end)
-
-	if i == 1 then
-		selectItem(item, itemCards[item.Id])
-	end
-end
-
-local MIN_QTY = 1
-local MAX_QTY = 999 -- ограничение чтобы не сломать сервер случайным вводом
 
 local function getQty()
 	local n = tonumber(qtyBox.Text)
 	if not n then
 		return MIN_QTY
 	end
-	n = round(n)
-	if n < MIN_QTY then n = MIN_QTY end
-	if n > MAX_QTY then n = MAX_QTY end
-	return n
+	return clampQty(n)
 end
 
-local function updateTotals()
+local function updateTotal()
 	local qty = getQty()
-	for _, item in ipairs(SHOP_ITEMS) do
-		local card = itemCards[item.Id]
-		if card then
-			local total = item.Price * qty
-			card.TotalLabel.Text = string.format("Итого за %d шт.: %s %s", qty, formatNumber(total), item.Currency)
-		end
-	end
+	totalLabel.Text = "Итого: " .. (ITEM_PRICE * qty) .. " " .. CURRENCY
 end
 
 qtyBox:GetPropertyChangedSignal("Text"):Connect(function()
 	local filtered = qtyBox.Text:gsub("%D", "")
 	if filtered ~= qtyBox.Text then
 		qtyBox.Text = filtered
+		return
 	end
-	updateTotals()
+	updateTotal()
 end)
 
 qtyBox.FocusLost:Connect(function()
 	qtyBox.Text = tostring(getQty())
-	updateTotals()
+	updateTotal()
 end)
 
-minusBtn.MouseButton1Click:Connect(function()
-	qtyBox.Text = tostring(math.max(MIN_QTY, getQty() - 1))
-	updateTotals()
+minusButton.MouseButton1Click:Connect(function()
+	qtyBox.Text = tostring(clampQty(getQty() - 1))
+	updateTotal()
 end)
 
-plusBtn.MouseButton1Click:Connect(function()
-	qtyBox.Text = tostring(math.min(MAX_QTY, getQty() + 1))
-	updateTotals()
+plusButton.MouseButton1Click:Connect(function()
+	qtyBox.Text = tostring(clampQty(getQty() + 1))
+	updateTotal()
 end)
-
-updateTotals()
-
-local remoteEvent = workspace:WaitForChild("ItemBoughtFromShop")
 
 local isBuying = false
 
-local function setStatus(text, color)
-	statusLabel.Text = text
-	statusLabel.TextColor3 = color or Color3.fromRGB(200, 200, 200)
-end
-
-local function buyCurrentSelection(item)
+buyButton.MouseButton1Click:Connect(function()
 	if isBuying then
 		return
 	end
+	isBuying = true
 
 	local qty = getQty()
-	if qty < MIN_QTY then
-		setStatus("Некорректное количество!", Color3.fromRGB(255, 90, 90))
-		return
-	end
+	local args = { ITEM_ID, qty }
 
-	isBuying = true
-	setStatus(("Покупаем %d x %s..."):format(qty, item.Name), Color3.fromRGB(230, 200, 100))
-
-	local args = { item.Id, qty }
+	statusLabel.Text = "Покупка..."
+	statusLabel.TextColor3 = COLOR_BLUE_BRIGHT
 
 	local ok, result = pcall(function()
-		return remoteEvent:InvokeServer(unpack(args))
+		return workspace:WaitForChild("ItemBoughtFromShop"):InvokeServer(unpack(args))
 	end)
 
-	if ok then
-		if result == false then
-			setStatus("Сервер отклонил покупку (недостаточно " .. item.Currency .. "?)", Color3.fromRGB(255, 110, 110))
-		else
-			setStatus(("Успешно куплено: %d x %s ✅"):format(qty, item.Name), Color3.fromRGB(120, 230, 150))
-		end
+	if ok and result ~= false then
+		statusLabel.Text = "Куплено: " .. qty .. " x PineTree"
+		statusLabel.TextColor3 = COLOR_BLUE_BRIGHT
 	else
-		setStatus("Ошибка при покупке: " .. tostring(result), Color3.fromRGB(255, 110, 110))
+		statusLabel.Text = "Не удалось купить"
+		statusLabel.TextColor3 = Color3.fromRGB(220, 90, 90)
 	end
 
 	isBuying = false
-end
+end)
 
-buyCurrentSelectionRef = buyCurrentSelection
+local isMinimized = false
+local isMaximized = false
 
-local isOpen = false
-
-local function openShop()
-	isOpen = true
-	mainFrame.Visible = true
-	mainFrame.Size = UDim2.fromOffset(380, 0)
-	mainFrame.BackgroundTransparency = 1
-	tween(mainFrame, { Size = UDim2.fromOffset(380, 420), BackgroundTransparency = 0 }, 0.25, Enum.EasingStyle.Back)
-end
-
-local function closeShop()
-	isOpen = false
-	local t = tween(mainFrame, { Size = UDim2.fromOffset(380, 0), BackgroundTransparency = 1 }, 0.2)
-	t.Completed:Connect(function()
-		if not isOpen then
-			mainFrame.Visible = false
-		end
-	end)
-end
-
-toggleButton.MouseButton1Click:Connect(function()
-	if isOpen then
-		closeShop()
+minimizeButton.MouseButton1Click:Connect(function()
+	isMinimized = not isMinimized
+	if isMinimized then
+		bodyFrame.Visible = false
+		tween(mainFrame, { Size = MINIMIZED_SIZE }, 0.2)
 	else
-		openShop()
+		bodyFrame.Visible = true
+		tween(mainFrame, { Size = isMaximized and MAXIMIZED_SIZE or NORMAL_SIZE }, 0.2)
 	end
+end)
+
+maximizeButton.MouseButton1Click:Connect(function()
+	if isMinimized then
+		isMinimized = false
+		bodyFrame.Visible = true
+	end
+	isMaximized = not isMaximized
+	tween(mainFrame, { Size = isMaximized and MAXIMIZED_SIZE or NORMAL_SIZE }, 0.2)
 end)
 
 closeButton.MouseButton1Click:Connect(function()
-	closeShop()
+	screenGui:Destroy()
+	script:Destroy()
 end)
-
--- маленькая анимация наведения на кнопки
-local function hoverEffect(btn, hoverColor, normalColor)
-	btn.MouseEnter:Connect(function()
-		tween(btn, { BackgroundColor3 = hoverColor }, 0.12)
-	end)
-	btn.MouseLeave:Connect(function()
-		tween(btn, { BackgroundColor3 = normalColor }, 0.12)
-	end)
-end
-
-hoverEffect(toggleButton, Color3.fromRGB(45, 160, 90), Color3.fromRGB(35, 130, 65))
-hoverEffect(closeButton, Color3.fromRGB(210, 70, 70), Color3.fromRGB(180, 50, 50))
-hoverEffect(minusBtn, Color3.fromRGB(70, 80, 75), Color3.fromRGB(50, 60, 55))
-hoverEffect(plusBtn, Color3.fromRGB(70, 80, 75), Color3.fromRGB(50, 60, 55))
-
-for _, item in ipairs(SHOP_ITEMS) do
-	local card = itemCards[item.Id]
-	local buyBtn
-	for _, child in ipairs(card.Frame:GetChildren()) do
-		if child:IsA("TextButton") and child.Text == "Купить" then
-			buyBtn = child
-			break
-		end
-	end
-	if buyBtn then
-		hoverEffect(buyBtn, Color3.fromRGB(55, 190, 105), Color3.fromRGB(45, 160, 90))
-	end
-end
 
 local dragging = false
 local dragInput
 local dragStart
 local startPos
 
-local function updateDrag(input)
-	local delta = input.Position - dragStart
-	mainFrame.Position = UDim2.new(
-		startPos.X.Scale, startPos.X.Offset + delta.X,
-		startPos.Y.Scale, startPos.Y.Offset + delta.Y
-	)
-end
-
 titleBar.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
 		dragging = true
 		dragStart = input.Position
 		startPos = mainFrame.Position
-
 		input.Changed:Connect(function()
 			if input.UserInputState == Enum.UserInputState.End then
 				dragging = false
@@ -589,23 +518,12 @@ end)
 
 UserInputService.InputChanged:Connect(function(input)
 	if input == dragInput and dragging then
-		updateDrag(input)
+		local delta = input.Position - dragStart
+		mainFrame.Position = UDim2.new(
+			startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y
+		)
 	end
 end)
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then return end
-	if input.KeyCode == Enum.KeyCode.J then
-		if isOpen then
-			closeShop()
-		else
-			openShop()
-		end
-	end
-end)
-
---[[
-    ============================================================
-     Made by @TheZeroStudio
-    ============================================================
-]]
+updateTotal()
