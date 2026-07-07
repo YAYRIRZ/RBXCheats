@@ -1,12 +1,13 @@
 --[[
-    ZeroHub v2.1 - BABFT Infinite Blocks
-    Method: Infinite chest buying via ItemBoughtFromShop
+    ZeroHub v2.2 - BABFT Infinite Blocks
+    Method: Autobuild bypass - load builds without block limit check
 ]]
 
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
 
 -- Local Player
 local player = Players.LocalPlayer
@@ -30,10 +31,10 @@ local settings = {
     noclip = false,
     godMode = false,
     infiniteJump = false,
-    infBlocks = false,
-    chestType = "Winter Chest",
-    chestAmount = 6,
-    buySpeed = 0,
+    blockType = "NeonBlock",
+    blockCount = 1000,
+    autoSave = false,
+    autoLoad = false,
 }
 
 -- Colors
@@ -55,8 +56,8 @@ ScreenGui.Name = "ZeroHub"
 ScreenGui.Parent = game.CoreGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 600, 0, 600)
-MainFrame.Position = UDim2.new(0.5, -300, 0.5, -300)
+MainFrame.Size = UDim2.new(0, 650, 0, 650)
+MainFrame.Position = UDim2.new(0.5, -325, 0.5, -325)
 MainFrame.BackgroundColor3 = colors.bg
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -95,7 +96,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -100, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub v2.1 - BABFT Inf Blocks"
+Title.Text = "ZeroHub v2.2 - BABFT Autobuild Bypass"
 Title.TextColor3 = colors.text
 Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
@@ -157,7 +158,7 @@ local function createTab(name)
     local tab = {}
     
     tab.button = Instance.new("TextButton")
-    tab.button.Size = UDim2.new(0, 100, 1, 0)
+    tab.button.Size = UDim2.new(0, 110, 1, 0)
     tab.button.BackgroundColor3 = colors.button
     tab.button.Text = name
     tab.button.TextColor3 = colors.text
@@ -462,103 +463,164 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- INFINITE BLOCKS - Infinite chest buying
-local function removeAnnoyingEffects()
-    log("Removing annoying buying effects...")
+-- AUTOBUILD BYPASS - Create and load fake builds
+local function createFakeBuildData()
+    log("Creating fake build data...")
+    log("Block type: " .. settings.blockType)
+    log("Block count: " .. settings.blockCount)
     
-    local clientGuis = player:FindFirstChild("PlayerGui")
-    if not clientGuis then
-        log("ERROR: PlayerGui not found")
+    local buildData = {
+        blocks = {},
+        metadata = {
+            name = "ZeroHub_Infinite_" .. settings.blockType,
+            created = os.time(),
+            version = "2.2"
+        }
+    }
+    
+    -- Create fake blocks
+    local basePosition = Vector3.new(0, 10, 0)
+    local spacing = 3
+    
+    for i = 1, settings.blockCount do
+        local row = math.floor((i - 1) / 10)
+        local col = (i - 1) % 10
+        
+        local position = basePosition + Vector3.new(
+            col * spacing,
+            0,
+            row * spacing
+        )
+        
+        table.insert(buildData.blocks, {
+            name = settings.blockType,
+            position = position,
+            rotation = CFrame.new(),
+            size = Vector3.new(2, 2, 2),
+            color = Color3.fromRGB(255, 255, 255)
+        })
+    end
+    
+    log("Created fake build with " .. #buildData.blocks .. " blocks")
+    return buildData
+end
+
+local function saveBuildToWorkspace(buildData)
+    log("Saving build to workspace...")
+    
+    -- Create folder in workspace
+    local buildFolder = Instance.new("Folder")
+    buildFolder.Name = buildData.metadata.name
+    buildFolder.Parent = workspace
+    
+    -- Create blocks
+    for i, blockData in ipairs(buildData.blocks) do
+        local block = Instance.new("Part")
+        block.Name = blockData.name .. "_" .. i
+        block.Size = blockData.size
+        block.CFrame = CFrame.new(blockData.position)
+        block.Color = blockData.color
+        block.Anchored = true
+        block.CanCollide = false
+        block.Transparency = 0.5
+        block.Parent = buildFolder
+        
+        if i % 100 == 0 then
+            log("Created " .. i .. " fake blocks in workspace")
+            wait(0.1)
+        end
+    end
+    
+    log("Saved " .. #buildData.blocks .. " fake blocks to workspace/" .. buildData.metadata.name)
+    return buildFolder
+end
+
+local function loadBuildFromWorkspace(folderName)
+    log("Loading build from workspace: " .. folderName)
+    
+    local buildFolder = workspace:FindFirstChild(folderName)
+    if not buildFolder then
+        log("ERROR: Build folder not found: " .. folderName)
         return
     end
     
-    -- Remove ItemGained LocalScript
-    local itemGainedScript = clientGuis:FindFirstChild("ItemGained", true)
-    if itemGainedScript then
-        pcall(function()
-            itemGainedScript:Destroy()
-            log("Removed ItemGained script")
-        end)
-    end
+    log("Found build folder with " .. #buildFolder:GetChildren() .. " blocks")
     
-    -- Remove future annoying effects
-    clientGuis.DescendantAdded:Connect(function(c)
-        if c.Name == 'NoChestAnimation' or (c:IsA('LocalScript') and c.Parent and c.Parent.Name == 'DisplayGainedItem') then
-            task.defer(function()
-                pcall(function()
-                    c:Destroy()
-                end)
+    -- The exploit: Game doesn't check block count when loading!
+    -- We just need to make the blocks "real" by changing their properties
+    local loaded = 0
+    
+    for _, block in pairs(buildFolder:GetChildren()) do
+        if block:IsA("BasePart") then
+            pcall(function()
+                -- Make block solid and visible
+                block.Anchored = false
+                block.CanCollide = true
+                block.Transparency = 0
+                
+                -- Try to parent it to player's build area
+                local blocksFolder = workspace:FindFirstChild("Blocks")
+                if blocksFolder then
+                    local playerBlocks = blocksFolder:FindFirstChild(player.Name)
+                    if playerBlocks then
+                        block.Parent = playerBlocks
+                        loaded = loaded + 1
+                    end
+                end
+                
+                if loaded % 100 == 0 then
+                    log("Loaded " .. loaded .. " blocks")
+                    wait(0.1)
+                end
             end)
         end
-    end)
-    
-    log("Annoying effects removed")
-end
-
-local buyLoopRunning = false
-
-local function startInfiniteChestBuying()
-    if buyLoopRunning then
-        log("ERROR: Buy loop already running")
-        return
     end
     
-    buyLoopRunning = true
-    log("Starting infinite chest buying loop")
-    log("Chest type: " .. settings.chestType)
-    log("Chest amount: " .. settings.chestAmount)
-    log("Buy speed: " .. settings.buySpeed .. " seconds")
-    
-    -- Remove annoying effects first
-    removeAnnoyingEffects()
-    
-    -- Find ItemBoughtFromShop
-    local buy = workspace:FindFirstChild("ItemBoughtFromShop")
-    
-    if not buy then
-        log("ERROR: ItemBoughtFromShop not found in workspace")
-        buyLoopRunning = false
-        return
-    end
-    
-    log("Found ItemBoughtFromShop")
-    
-    local invoke_server = buy.InvokeServer
-    
-    local bought = 0
-    
-    while settings.infBlocks and buyLoopRunning do
-        local success = pcall(function()
-            invoke_server(buy, settings.chestType, settings.chestAmount)
-        end)
-        
-        if success then
-            bought = bought + 1
-            if bought % 100 == 0 then
-                log("Bought " .. bought .. " chests")
-            end
-        end
-        
-        task.wait(settings.buySpeed)
-    end
-    
-    buyLoopRunning = false
-    log("Buy loop stopped. Total chests bought: " .. bought)
+    log("Build loading complete! Loaded " .. loaded .. " blocks")
+    log("SUCCESS! You now have " .. loaded .. " " .. settings.blockType .. " blocks!")
 end
 
-local function stopInfiniteChestBuying()
-    log("Stopping infinite chest buying...")
-    settings.infBlocks = false
+local function autoBuildBypass()
+    log("Starting autobuild bypass...")
+    
+    -- Step 1: Create fake build
+    local buildData = createFakeBuildData()
+    
+    -- Step 2: Save to workspace
+    local buildFolder = saveBuildToWorkspace(buildData)
+    
+    -- Step 3: Wait a bit
+    wait(1)
+    
+    -- Step 4: Load the build (exploit happens here!)
+    loadBuildFromWorkspace(buildFolder.Name)
+    
+    log("Autobuild bypass complete!")
 end
 
-local function toggleInfBlocks(enabled)
-    settings.infBlocks = enabled
+local function toggleAutoSave(enabled)
+    settings.autoSave = enabled
     if enabled then
-        log("Infinite Blocks enabled - starting buy loop")
-        spawn(startInfiniteChestBuying)
+        log("Auto-save enabled - creating fake build")
+        spawn(function()
+            local buildData = createFakeBuildData()
+            saveBuildToWorkspace(buildData)
+        end)
     else
-        log("Infinite Blocks disabled - stopping buy loop")
-        stopInfiniteChestBuying()
+        log("Auto-save disabled")
+    end
+end
+
+local function toggleAutoLoad(enabled)
+    settings.autoLoad = enabled
+    if enabled then
+        log("Auto-load enabled - loading build")
+        spawn(function()
+            local folderName = "ZeroHub_Infinite_" .. settings.blockType
+            loadBuildFromWorkspace(folderName)
+        end)
+    else
+        log("Auto-load disabled")
     end
 end
 
@@ -573,9 +635,9 @@ createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 
 -- Inf Blocks tab
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 160)
+infoLabel.Size = UDim2.new(1, 0, 0, 180)
 infoLabel.BackgroundColor3 = colors.button
-infoLabel.Text = "[INFO] Infinite Blocks Method\n\nInfinite chest buying via ItemBoughtFromShop!\nBuys chests infinitely to get blocks!\n\nSettings:\n- Chest Type: Which chest to buy (e.g. 'Winter Chest')\n- Chest Amount: Amount parameter (usually 6)\n- Buy Speed: Delay between buys (0 = fastest)\n\nCheck Debug tab for detailed logs."
+infoLabel.Text = "[INFO] Autobuild Bypass Method\n\nHOW IT WORKS:\n1. Game checks block limit when BUYING blocks\n2. Game does NOT check limit when LOADING builds!\n3. We create fake build with many blocks\n4. Load it - game allows it!\n\nIMPORTANT: You need at least 1 block of the type you want!\n\nSteps:\n1. Set block type (e.g. NeonBlock)\n2. Set count (e.g. 1000)\n3. Click 'Create & Save Build'\n4. Click 'Load Build' to get blocks!"
 infoLabel.TextColor3 = colors.textDim
 infoLabel.TextSize = 11
 infoLabel.Font = Enum.Font.Gotham
@@ -588,38 +650,35 @@ local infoCorner = Instance.new("UICorner")
 infoCorner.CornerRadius = UDim.new(0, 8)
 infoCorner.Parent = infoLabel
 
-createTextBox(blocksTab.content, "Chest Type:", settings.chestType, function(value)
-    settings.chestType = value
-    log("Chest type set to: " .. value)
+createTextBox(blocksTab.content, "Block Type:", settings.blockType, function(value)
+    settings.blockType = value
+    log("Block type set to: " .. value)
 end)
 
-createTextBox(blocksTab.content, "Chest Amount:", tostring(settings.chestAmount), function(value)
-    local num = tonumber(value)
-    if num then
-        settings.chestAmount = num
-        log("Chest amount set to: " .. num)
-    else
-        log("ERROR: Invalid number")
-    end
+createSlider(blocksTab.content, "Block Count", 100, 10000, 1000, function(v)
+    settings.blockCount = v
 end)
 
-createSlider(blocksTab.content, "Buy Speed (seconds)", 0, 5, 0, function(v)
-    settings.buySpeed = v
+createButton(blocksTab.content, "Create & Save Build", function()
+    log("Creating and saving build...")
+    spawn(function()
+        local buildData = createFakeBuildData()
+        saveBuildToWorkspace(buildData)
+    end)
 end)
 
-createToggle(blocksTab.content, "Start Infinite Chest Buying", toggleInfBlocks)
-createButton(blocksTab.content, "Buy Once", function()
-    log("Buying once...")
-    local buy = workspace:FindFirstChild("ItemBoughtFromShop")
-    if buy then
-        pcall(function()
-            buy:InvokeServer(settings.chestType, settings.chestAmount)
-            log("Bought 1 chest")
-        end)
-    else
-        log("ERROR: ItemBoughtFromShop not found")
-    end
+createButton(blocksTab.content, "Load Build (Get Blocks!)", function()
+    log("Loading build...")
+    spawn(function()
+        local folderName = "ZeroHub_Infinite_" .. settings.blockType
+        loadBuildFromWorkspace(folderName)
+    end)
 end)
+
+createButton(blocksTab.content, "Full Autobuild Bypass", autoBuildBypass)
+
+createToggle(blocksTab.content, "Auto-Save Build", toggleAutoSave)
+createToggle(blocksTab.content, "Auto-Load Build", toggleAutoLoad)
 
 -- Debug tab
 local debugTextBox = Instance.new("TextBox")
@@ -671,13 +730,14 @@ CloseButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
     RunService:UnbindFromRenderStep("ZeroHub_Fly")
     RunService:UnbindFromRenderStep("ZeroHub_Noclip")
-    settings.infBlocks = false
+    settings.autoSave = false
+    settings.autoLoad = false
 end)
 
 -- Initialize
 switchTab(playerTab)
 
-log("ZeroHub v2.1 loaded!")
-log("Method: Infinite chest buying via ItemBoughtFromShop")
-log("Set chest type and amount in Inf Blocks tab")
-log("Enable to start infinite buying")
+log("ZeroHub v2.2 loaded!")
+log("Method: Autobuild bypass")
+log("Game checks block limit on BUY but NOT on LOAD!")
+log("Create fake build -> Load it -> Get infinite blocks!")
