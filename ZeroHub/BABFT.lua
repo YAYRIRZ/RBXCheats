@@ -1,6 +1,6 @@
 --[[
-    ZeroHub v2.6 - BABFT Advanced AutoFarm
-    Fixed: Correct path workspace.BoatStages.NormalStages
+    ZeroHub v2.8 - BABFT AutoFarm + Disable 3D Render
+    Simple version with render disable feature
 ]]
 
 -- Services
@@ -8,6 +8,9 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local UserSettings = UserSettings()
+local RenderSettings = UserSettings():GetService("UserGameSettings")
 
 -- Local Player
 local player = Players.LocalPlayer
@@ -32,11 +35,8 @@ local settings = {
     godMode = false,
     infiniteJump = false,
     autoFarm = false,
-    autoFarmSpeed = 1,
-    lowGravity = true,
-    autoCollect = true,
-    autoRespawn = true,
     teleportDelay = 2,
+    disableRender = false,
 }
 
 -- Colors
@@ -98,7 +98,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -100, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub v2.6 - BABFT Advanced AutoFarm"
+Title.Text = "ZeroHub v2.8 - BABFT AutoFarm + Render Control"
 Title.TextColor3 = colors.text
 Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
@@ -205,10 +205,12 @@ end
 
 local playerTab = createTab("Player")
 local farmTab = createTab("AutoFarm")
+local renderTab = createTab("Render")
 local debugTab = createTab("Debug")
 
 playerTab.button.MouseButton1Click:Connect(function() switchTab(playerTab) end)
 farmTab.button.MouseButton1Click:Connect(function() switchTab(farmTab) end)
+renderTab.button.MouseButton1Click:Connect(function() switchTab(renderTab) end)
 debugTab.button.MouseButton1Click:Connect(function() switchTab(debugTab) end)
 
 -- Helper functions
@@ -422,9 +424,119 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
+-- RENDER FUNCTIONS
+local originalSettings = {}
+
+local function saveOriginalSettings()
+    originalSettings.SavedQualityLevel = RenderSettings.SavedQualityLevel
+    originalSettings.Fullscreen = RenderSettings.Fullscreen
+    originalSettings.GraphicsQualityLevel = RenderSettings.GraphicsQualityLevel
+    log("Saved original render settings")
+end
+
+local function restoreOriginalSettings()
+    pcall(function()
+        RenderSettings.SavedQualityLevel = originalSettings.SavedQualityLevel or 10
+        RenderSettings.Fullscreen = originalSettings.Fullscreen or false
+        RenderSettings.GraphicsQualityLevel = originalSettings.GraphicsQualityLevel or 10
+        log("Restored original render settings")
+    end)
+end
+
+local function disable3DRender(enabled)
+    settings.disableRender = enabled
+    
+    if enabled then
+        log("Disabling 3D render for better performance...")
+        saveOriginalSettings()
+        
+        pcall(function()
+            -- Set lowest quality
+            RenderSettings.SavedQualityLevel = 1
+            RenderSettings.GraphicsQualityLevel = 1
+            
+            -- Disable fullscreen
+            RenderSettings.Fullscreen = false
+            
+            -- Disable shadows via Lighting
+            Lighting.GlobalShadows = false
+            Lighting.ShadowColor = Color3.new(0, 0, 0)
+            
+            -- Reduce lighting quality
+            Lighting.Brightness = 0.5
+            Lighting.OutdoorAmbient = Color3.fromRGB(50, 50, 50)
+            
+            -- Disable post-processing effects
+            for _, effect in ipairs(Lighting:GetChildren()) do
+                if effect:IsA("PostEffect") then
+                    effect.Enabled = false
+                end
+            end
+            
+            -- Set camera to very low render distance
+            local camera = workspace.CurrentCamera
+            if camera then
+                camera.NearPlaneZ = 0.1
+                camera.FarPlaneZ = 50
+            end
+            
+            -- Make all parts transparent except player
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and not obj:IsDescendantOf(character) then
+                    obj.Transparency = 0.9
+                end
+            end
+        end)
+        
+        log("3D render disabled - maximum performance!")
+    else
+        log("Re-enabling 3D render...")
+        restoreOriginalSettings()
+        
+        pcall(function()
+            -- Re-enable shadows
+            Lighting.GlobalShadows = true
+            
+            -- Restore lighting
+            Lighting.Brightness = 1
+            Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+            
+            -- Re-enable post-processing
+            for _, effect in ipairs(Lighting:GetChildren()) do
+                if effect:IsA("PostEffect") then
+                    effect.Enabled = true
+                end
+            end
+            
+            -- Restore camera
+            local camera = workspace.CurrentCamera
+            if camera then
+                camera.NearPlaneZ = 0.1
+                camera.FarPlaneZ = 1000
+            end
+            
+            -- Restore part transparency
+            for _, obj in ipairs(workspace:GetDescendants()) do
+                if obj:IsA("BasePart") and not obj:IsDescendantOf(character) then
+                    obj.Transparency = 0
+                end
+            end
+        end)
+        
+        log("3D render re-enabled")
+    end
+end
+
+local function setGraphicsQuality(quality)
+    pcall(function()
+        RenderSettings.SavedQualityLevel = quality
+        RenderSettings.GraphicsQualityLevel = quality
+        log("Graphics quality set to: " .. quality)
+    end)
+end
+
 -- AUTOFARM FUNCTIONS
 local originalGravity = workspace.Gravity
-local LOW_GRAVITY = 5
 
 local function isAlive(char)
     return char and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0
@@ -437,28 +549,9 @@ local function applyGodMode(char)
     end
 end
 
-local function createTempPlatform()
-    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
-        return nil
-    end
-    
-    local part = Instance.new("Part")
-    part.Name = "ZeroHub_Platform"
-    part.Anchored = true
-    part.CanCollide = true
-    part.Size = Vector3.new(10, 1, 10)
-    part.Position = player.Character.HumanoidRootPart.Position - Vector3.new(0, 6, 0)
-    part.Transparency = 0.5
-    part.BrickColor = BrickColor.new("Cyan")
-    part.Parent = player.Character
-    
-    return part
-end
-
 local function farmLoop()
     log("Starting autofarm loop...")
     log("Teleport delay: " .. settings.teleportDelay .. " seconds")
-    log("Low gravity: " .. tostring(settings.lowGravity))
     
     local totalRuns = 0
     local startTime = tick()
@@ -477,22 +570,17 @@ local function farmLoop()
         local char = player.Character
         applyGodMode(char)
         
-        -- Set low gravity
-        if settings.lowGravity then
-            workspace.Gravity = LOW_GRAVITY
-        end
-        
         -- Find BoatStages
         local boatStages = workspace:FindFirstChild("BoatStages")
         if not boatStages then
-            log("ERROR: BoatStages folder not found in workspace")
+            log("ERROR: BoatStages folder not found")
             task.wait(2)
             continue
         end
         
         local normalStages = boatStages:FindFirstChild("NormalStages")
         if not normalStages then
-            log("ERROR: NormalStages folder not found in BoatStages")
+            log("ERROR: NormalStages folder not found")
             task.wait(2)
             continue
         end
@@ -507,13 +595,13 @@ local function farmLoop()
             local stage = normalStages:FindFirstChild(stageName)
             
             if not stage then
-                log("WARNING: " .. stageName .. " not found, skipping")
+                log("WARNING: " .. stageName .. " not found")
                 continue
             end
             
             local darknessPart = stage:FindFirstChild("DarknessPart")
             if not darknessPart then
-                log("WARNING: DarknessPart not found in " .. stageName .. ", skipping")
+                log("WARNING: DarknessPart not found in " .. stageName)
                 continue
             end
             
@@ -533,16 +621,8 @@ local function farmLoop()
             log("Teleporting to " .. stageName)
             char.HumanoidRootPart.CFrame = darknessPart.CFrame
             
-            -- Create temp platform under player
-            local platform = createTempPlatform()
-            
             -- Wait for teleport delay
             task.wait(settings.teleportDelay)
-            
-            -- Remove platform
-            if platform then
-                platform:Destroy()
-            end
         end
         
         if not settings.autoFarm then break end
@@ -559,7 +639,6 @@ local function farmLoop()
                         char.HumanoidRootPart.CFrame = trigger.CFrame
                         
                         -- Wait until day time changes (indicates chest claimed)
-                        local Lighting = game:GetService("Lighting")
                         local startClockTime = Lighting.ClockTime
                         local waitStart = tick()
                         
@@ -583,22 +662,20 @@ local function farmLoop()
         if not settings.autoFarm then break end
         
         -- Wait for respawn
-        if settings.autoRespawn then
-            log("Waiting for respawn...")
-            local respawned = false
-            local connection
-            connection = player.CharacterAdded:Connect(function()
-                respawned = true
-                connection:Disconnect()
-            end)
-            
-            repeat
-                task.wait(0.1)
-            until not settings.autoFarm or respawned
-            
-            if connection.Connected then
-                connection:Disconnect()
-            end
+        log("Waiting for respawn...")
+        local respawned = false
+        local connection
+        connection = player.CharacterAdded:Connect(function()
+            respawned = true
+            connection:Disconnect()
+        end)
+        
+        repeat
+            task.wait(0.1)
+        until not settings.autoFarm or respawned
+        
+        if connection.Connected then
+            connection:Disconnect()
         end
         
         -- Wait between runs
@@ -610,8 +687,6 @@ local function farmLoop()
         log("Run #" .. totalRuns .. " complete - Runs/hour: " .. string.format("%.1f", runsPerHour))
     end
     
-    -- Restore gravity
-    workspace.Gravity = originalGravity
     log("Autofarm stopped - Total runs: " .. totalRuns)
 end
 
@@ -622,7 +697,6 @@ local function toggleAutoFarm(enabled)
         task.spawn(farmLoop)
     else
         log("AutoFarm disabled - stopping")
-        workspace.Gravity = originalGravity
     end
 end
 
@@ -636,43 +710,59 @@ createToggle(playerTab.content, "God Mode", toggleGodMode)
 createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 
 -- AutoFarm tab
-local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 180)
-infoLabel.BackgroundColor3 = colors.button
-infoLabel.Text = "[INFO] Advanced AutoFarm v2.6\n\nFIXED: Correct path workspace.BoatStages.NormalStages\n\nHOW IT WORKS:\n1. Teleports to CaveStage1-10 DarknessPart\n2. Creates temp platform under you\n3. Teleports to TheEnd/GoldenChest/Trigger\n4. Waits for chest to be claimed\n5. Respawns and repeats\n\nFEATURES:\n- Low gravity (avoid fall damage)\n- Auto respawn\n- Temp platforms (don't fall)\n- God mode (optional)"
-infoLabel.TextColor3 = colors.textDim
-infoLabel.TextSize = 12
-infoLabel.Font = Enum.Font.Gotham
-infoLabel.TextWrapped = true
-infoLabel.TextXAlignment = Enum.TextXAlignment.Left
-infoLabel.TextYAlignment = Enum.TextYAlignment.Top
-infoLabel.Parent = farmTab.content
+local farmInfoLabel = Instance.new("TextLabel")
+farmInfoLabel.Size = UDim2.new(1, 0, 0, 140)
+farmInfoLabel.BackgroundColor3 = colors.button
+farmInfoLabel.Text = "[INFO] Simple AutoFarm\n\nHOW IT WORKS:\n1. Teleports to CaveStage1-10 DarknessPart\n2. Teleports to TheEnd/GoldenChest/Trigger\n3. Waits for chest to be claimed\n4. Respawns and repeats\n\nTIP: Enable 'Disable 3D Render' in Render tab for better performance!"
+farmInfoLabel.TextColor3 = colors.textDim
+farmInfoLabel.TextSize = 12
+farmInfoLabel.Font = Enum.Font.Gotham
+farmInfoLabel.TextWrapped = true
+farmInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+farmInfoLabel.TextYAlignment = Enum.TextYAlignment.Top
+farmInfoLabel.Parent = farmTab.content
 
-local infoCorner = Instance.new("UICorner")
-infoCorner.CornerRadius = UDim.new(0, 8)
-infoCorner.Parent = infoLabel
+local farmInfoCorner = Instance.new("UICorner")
+farmInfoCorner.CornerRadius = UDim.new(0, 8)
+farmInfoCorner.Parent = farmInfoLabel
 
 createSlider(farmTab.content, "Teleport Delay (seconds)", 1, 10, 2, function(v)
     settings.teleportDelay = v
     log("Teleport delay set to: " .. v .. " seconds")
 end)
 
-createToggle(farmTab.content, "Low Gravity (Avoid Damage)", function(enabled)
-    settings.lowGravity = enabled
-    if enabled and settings.autoFarm then
-        workspace.Gravity = LOW_GRAVITY
-    elseif not settings.autoFarm then
-        workspace.Gravity = originalGravity
-    end
-    log("Low gravity: " .. tostring(enabled))
+createToggle(farmTab.content, "START AUTOFARM", toggleAutoFarm)
+
+-- Render tab
+local renderInfoLabel = Instance.new("TextLabel")
+renderInfoLabel.Size = UDim2.new(1, 0, 0, 160)
+renderInfoLabel.BackgroundColor3 = colors.button
+renderInfoLabel.Text = "[INFO] Render Control\n\nDISABLE 3D RENDER:\n- Sets graphics to lowest quality\n- Disables shadows\n- Reduces lighting quality\n- Makes parts transparent\n- Reduces render distance\n- MASSIVE FPS BOOST!\n\nUse this while autofarming for better performance!"
+renderInfoLabel.TextColor3 = colors.textDim
+renderInfoLabel.TextSize = 12
+renderInfoLabel.Font = Enum.Font.Gotham
+renderInfoLabel.TextWrapped = true
+renderInfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+renderInfoLabel.TextYAlignment = Enum.TextYAlignment.Top
+renderInfoLabel.Parent = renderTab.content
+
+local renderInfoCorner = Instance.new("UICorner")
+renderInfoCorner.CornerRadius = UDim.new(0, 8)
+renderInfoCorner.Parent = renderInfoLabel
+
+createToggle(renderTab.content, "Disable 3D Render (FPS Boost)", disable3DRender)
+
+createSlider(renderTab.content, "Graphics Quality", 1, 21, 10, function(v)
+    setGraphicsQuality(v)
 end)
 
-createToggle(farmTab.content, "Auto Respawn", function(enabled)
-    settings.autoRespawn = enabled
-    log("Auto respawn: " .. tostring(enabled))
+createButton(renderTab.content, "Set Lowest Quality", function()
+    setGraphicsQuality(1)
 end)
 
-local startButton = createToggle(farmTab.content, "START AUTOFARM", toggleAutoFarm)
+createButton(renderTab.content, "Set Highest Quality", function()
+    setGraphicsQuality(21)
+end)
 
 -- Debug tab
 local debugTextBox = Instance.new("TextBox")
@@ -725,13 +815,16 @@ CloseButton.MouseButton1Click:Connect(function()
     RunService:UnbindFromRenderStep("ZeroHub_Fly")
     RunService:UnbindFromRenderStep("ZeroHub_Noclip")
     settings.autoFarm = false
-    workspace.Gravity = originalGravity
+    
+    -- Restore render settings if they were changed
+    if settings.disableRender then
+        restoreOriginalSettings()
+    end
 end)
 
 -- Initialize
 switchTab(playerTab)
 
-log("ZeroHub v2.6 loaded!")
-log("FIXED: Correct path workspace.BoatStages.NormalStages")
-log("Features: CaveStage teleport, temp platforms, auto respawn")
-log("Based on working GitHub autofarm scripts")
+log("ZeroHub v2.8 loaded!")
+log("Features: AutoFarm + Disable 3D Render")
+log("TIP: Disable 3D Render for massive FPS boost while farming!")
