@@ -1,44 +1,8 @@
 --[[
-    ZeroHub Icon (SVG) - можно использовать для загрузки как ImageLabel
-    Для использования в Roblox:
-    1. Загрузи этот SVG на Roblox как Decal/Image
-    2. Или используй base64 encoded version ниже
-]]
-
-local ZEROHUB_ICON_SVG = [[
-<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#00B4FF;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#0078C8;stop-opacity:1" />
-    </linearGradient>
-    <linearGradient id="textGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" style="stop-color:#FFFFFF;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#E0F4FF;stop-opacity:1" />
-    </linearGradient>
-    <filter id="glow">
-      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-      <feMerge>
-        <feMergeNode in="coloredBlur"/>
-        <feMergeNode in="SourceGraphic"/>
-      </feMerge>
-    </filter>
-  </defs>
-  <rect x="10" y="10" width="180" height="180" rx="30" ry="30" fill="url(#bgGradient)"/>
-  <rect x="15" y="15" width="170" height="170" rx="27" ry="27" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-opacity="0.3"/>
-  <g filter="url(#glow)">
-    <path d="M 40 60 L 90 60 L 90 75 L 55 125 L 90 125 L 90 140 L 40 140 L 40 125 L 75 75 L 40 75 Z" fill="url(#textGradient)"/>
-    <path d="M 100 60 L 115 60 L 115 92 L 145 92 L 145 60 L 160 60 L 160 140 L 145 140 L 145 107 L 115 107 L 115 140 L 100 140 Z" fill="url(#textGradient)"/>
-  </g>
-  <line x1="50" y1="160" x2="150" y2="160" stroke="#FFFFFF" stroke-width="3" stroke-opacity="0.6" stroke-linecap="round"/>
-</svg>
-]]
-
---[[
     ZeroHub - Advanced Script Hub for Roblox
-    Version: 1.0
+    Version: 1.1
     Colors: Cyan, Blue, Black
-    Features: Player Mods + Infinite Blocks
+    Features: Player Mods + Infinite Blocks (Updated Methods)
 ]]
 
 -- Services
@@ -46,6 +10,7 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 
 -- Local Player
 local player = Players.LocalPlayer
@@ -66,8 +31,9 @@ local settings = {
     
     -- Inf Blocks
     infiniteBlocks = false,
-    autoBuild = false,
-    blockMultiplier = 1
+    autobuildBypass = false,
+    copyBlocks = false,
+    blockSpam = false
 }
 
 -- Colors
@@ -100,7 +66,7 @@ MainFrame.Active = true
 MainFrame.Draggable = true
 MainFrame.Parent = ScreenGui
 
--- Gradient Background (using UIGradient)
+-- Gradient Background
 local mainGradient = Instance.new("UIGradient")
 mainGradient.Color = ColorSequence.new{
     ColorSequenceKeypoint.new(0, Color3.fromRGB(15, 20, 30)),
@@ -142,7 +108,7 @@ titleGradient.Color = ColorSequence.new{
 titleGradient.Rotation = 90
 titleGradient.Parent = TitleBar
 
--- Logo (ZH SVG simulation using TextLabel)
+-- Logo (ZH)
 local LogoFrame = Instance.new("Frame")
 LogoFrame.Size = UDim2.new(0, 50, 0, 50)
 LogoFrame.Position = UDim2.new(0, 10, 0, 0)
@@ -175,7 +141,7 @@ local MinimizeButton = Instance.new("TextButton")
 MinimizeButton.Size = UDim2.new(0, 35, 0, 35)
 MinimizeButton.Position = UDim2.new(1, -80, 0, 7)
 MinimizeButton.BackgroundColor3 = colors.button
-MinimizeButton.Text = "−"
+MinimizeButton.Text = "-"
 MinimizeButton.TextColor3 = colors.text
 MinimizeButton.TextSize = 24
 MinimizeButton.Font = Enum.Font.GothamBold
@@ -189,7 +155,7 @@ local CloseButton = Instance.new("TextButton")
 CloseButton.Size = UDim2.new(0, 35, 0, 35)
 CloseButton.Position = UDim2.new(1, -42, 0, 7)
 CloseButton.BackgroundColor3 = colors.danger
-CloseButton.Text = "✕"
+CloseButton.Text = "X"
 CloseButton.TextColor3 = colors.text
 CloseButton.TextSize = 20
 CloseButton.Font = Enum.Font.GothamBold
@@ -278,8 +244,8 @@ local function switchTab(tab)
 end
 
 -- Create Tabs
-local playerTab = createTab("Player", "👤")
-local infBlocksTab = createTab("Inf Blocks", "📦")
+local playerTab = createTab("Player", "[P]")
+local infBlocksTab = createTab("Inf Blocks", "[B]")
 
 -- Tab Click Handlers
 playerTab.button.MouseButton1Click:Connect(function()
@@ -515,34 +481,173 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- INF BLOCKS TAB FUNCTIONS
-local function toggleInfiniteBlocks(enabled)
-    settings.infiniteBlocks = enabled
+-- INF BLOCKS TAB FUNCTIONS (Updated Methods 2026)
+
+-- Method 1: Autobuild Bypass - Load builds without block limits
+local function toggleAutobuildBypass(enabled)
+    settings.autobuildBypass = enabled
     if enabled then
-        -- Try to find blocks in player's inventory or game
         spawn(function()
-            while settings.infiniteBlocks do
+            while settings.autobuildBypass do
                 pcall(function()
-                    -- Try to manipulate block counts
-                    local playerData = player:FindFirstChild("PlayerData") or player:FindFirstChild("leaderstats")
-                    if playerData then
-                        local blocks = playerData:FindFirstChild("Blocks") or playerData:FindFirstChild("blocks")
-                        if blocks then
-                            blocks.Value = 999999
+                    -- Find and hook into build system
+                    local playerGui = player:FindFirstChild("PlayerGui")
+                    if playerGui then
+                        local buildGui = playerGui:FindFirstChild("BuildGUI") or playerGui:FindFirstChild("BuildGui")
+                        if buildGui then
+                            -- Try to find block limit checks
+                            for _, gui in pairs(buildGui:GetDescendants()) do
+                                if gui:IsA("LocalScript") then
+                                    -- Hook into script execution
+                                    local oldEnv = getfenv(gui)
+                                    if oldEnv then
+                                        setfenv(gui, setmetatable({}, {
+                                            __index = function(t, k)
+                                                if k == "MaxBlocks" or k == "BlockLimit" or k == "maxBlocks" then
+                                                    return 999999999
+                                                end
+                                                return oldEnv[k]
+                                            end
+                                        }))
+                                    end
+                                end
+                            end
                         end
                     end
                     
-                    -- Try to find workspace blocks folder
-                    local blocksFolder = workspace:FindFirstChild("Blocks") or workspace:FindFirstChild("PlayerBlocks")
-                    if blocksFolder then
-                        for _, block in pairs(blocksFolder:GetChildren()) do
-                            if block:IsA("NumberValue") or block:IsA("IntValue") then
-                                block.Value = 999999
+                    -- Try to modify block count directly
+                    local playerData = player:FindFirstChild("PlayerData") or player:FindFirstChild("Data")
+                    if playerData then
+                        for _, value in pairs(playerData:GetDescendants()) do
+                            if value:IsA("IntValue") or value:IsA("NumberValue") then
+                                if string.find(value.Name:lower(), "block") then
+                                    value.Value = 999999999
+                                end
+                            end
+                        end
+                    end
+                end)
+                wait(1)
+            end
+        end)
+    end
+end
+
+-- Method 2: Block Spawner - Continuously spawn blocks
+local function toggleBlockSpam(enabled)
+    settings.blockSpam = enabled
+    if enabled then
+        spawn(function()
+            while settings.blockSpam do
+                pcall(function()
+                    -- Find block spawner or building area
+                    local buildingArea = workspace:FindFirstChild("BuildingArea") or workspace:FindFirstChild("BuildArea")
+                    if buildingArea then
+                        -- Try to find and trigger block spawn
+                        local spawner = buildingArea:FindFirstChild("BlockSpawner") or buildingArea:FindFirstChild("Spawner")
+                        if spawner then
+                            for _, child in pairs(spawner:GetChildren()) do
+                                if child:IsA("ClickDetector") then
+                                    fireclickdetector(child)
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- Try remote events
+                    local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes") or game:GetService("ReplicatedStorage"):FindFirstChild("RemoteEvents")
+                    if remotes then
+                        for _, remote in pairs(remotes:GetChildren()) do
+                            if remote:IsA("RemoteEvent") then
+                                if string.find(remote.Name:lower(), "spawn") or string.find(remote.Name:lower(), "block") then
+                                    remote:FireServer("Wood", 999)
+                                end
+                            end
+                        end
+                    end
+                end)
+                wait(0.1)
+            end
+        end)
+    end
+end
+
+-- Method 3: Copy Blocks - Duplicate existing blocks
+local function toggleCopyBlocks(enabled)
+    settings.copyBlocks = enabled
+    if enabled then
+        spawn(function()
+            while settings.copyBlocks do
+                pcall(function()
+                    -- Find player's placed blocks
+                    local playerBlocks = workspace:FindFirstChild(player.Name .. "'s Blocks") or workspace:FindFirstChild(player.Name .. "_Blocks")
+                    if playerBlocks then
+                        local blocks = playerBlocks:GetChildren()
+                        if #blocks > 0 then
+                            -- Try to duplicate via remote
+                            local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
+                            if remotes then
+                                local copyRemote = remotes:FindFirstChild("CopyBlock") or remotes:FindFirstChild("DuplicateBlock")
+                                if copyRemote and copyRemote:IsA("RemoteEvent") then
+                                    for i = 1, 10 do
+                                        copyRemote:FireServer(blocks[1])
+                                    end
+                                end
                             end
                         end
                     end
                 end)
                 wait(0.5)
+            end
+        end)
+    end
+end
+
+-- Method 4: Infinite Blocks (Original + Enhanced)
+local function toggleInfiniteBlocks(enabled)
+    settings.infiniteBlocks = enabled
+    if enabled then
+        spawn(function()
+            while settings.infiniteBlocks do
+                pcall(function()
+                    -- Try multiple locations for block data
+                    local locations = {
+                        player:FindFirstChild("PlayerData"),
+                        player:FindFirstChild("Data"),
+                        player:FindFirstChild("leaderstats"),
+                        player:FindFirstChild("Stats"),
+                        workspace:FindFirstChild("PlayerData"),
+                    }
+                    
+                    for _, location in pairs(locations) do
+                        if location then
+                            for _, value in pairs(location:GetDescendants()) do
+                                if value:IsA("IntValue") or value:IsA("NumberValue") then
+                                    local name = value.Name:lower()
+                                    if string.find(name, "block") or string.find(name, "wood") or 
+                                       string.find(name, "stone") or string.find(name, "iron") or
+                                       string.find(name, "gold") or string.find(name, "obsidian") then
+                                        value.Value = 999999999
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    
+                    -- Try to hook into inventory system
+                    local inventory = player:FindFirstChild("Inventory") or player:FindFirstChild("Backpack")
+                    if inventory then
+                        for _, item in pairs(inventory:GetChildren()) do
+                            if item:IsA("Tool") and string.find(item.Name:lower(), "block") then
+                                local count = item:FindFirstChild("Count") or item:FindFirstChild("Amount")
+                                if count and (count:IsA("IntValue") or count:IsA("NumberValue")) then
+                                    count.Value = 999999999
+                                end
+                            end
+                        end
+                    end
+                end)
+                wait(0.3)
             end
         end)
     end
@@ -570,14 +675,11 @@ createToggle(playerTab.content, "God Mode", toggleGodMode)
 createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 
 -- Populate Inf Blocks Tab
-createToggle(infBlocksTab.content, "Infinite Blocks", toggleInfiniteBlocks)
-
--- Info label for Inf Blocks
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 80)
+infoLabel.Size = UDim2.new(1, 0, 0, 100)
 infoLabel.BackgroundColor3 = colors.button
 infoLabel.BorderSizePixel = 0
-infoLabel.Text = "ℹ️ Infinite Blocks will attempt to:\n• Set block count to 999999\n• Bypass block limits\n• Works with most block types\n\nNote: May not work on all servers"
+infoLabel.Text = "[INFO] Infinite Blocks Methods (2026)\n\n1. Infinite Blocks - Sets block count to 999999999\n2. Autobuild Bypass - Bypasses build limits\n3. Block Spawner - Spawns blocks via remotes\n4. Copy Blocks - Duplicates existing blocks\n\nNote: Try different methods if one doesn't work"
 infoLabel.TextColor3 = colors.textDim
 infoLabel.TextSize = 12
 infoLabel.Font = Enum.Font.Gotham
@@ -589,6 +691,11 @@ infoLabel.Parent = infBlocksTab.content
 local infoCorner = Instance.new("UICorner")
 infoCorner.CornerRadius = UDim.new(0, 8)
 infoCorner.Parent = infoLabel
+
+createToggle(infBlocksTab.content, "Infinite Blocks (Method 1)", toggleInfiniteBlocks)
+createToggle(infBlocksTab.content, "Autobuild Bypass (Method 2)", toggleAutobuildBypass)
+createToggle(infBlocksTab.content, "Block Spawner (Method 3)", toggleBlockSpam)
+createToggle(infBlocksTab.content, "Copy Blocks (Method 4)", toggleCopyBlocks)
 
 -- Control Button Handlers
 local minimized = false
@@ -604,7 +711,7 @@ MinimizeButton.MouseButton1Click:Connect(function()
         MainFrame.Size = UDim2.new(0, 550, 0, 450)
         ContentArea.Visible = true
         TabContainer.Visible = true
-        MinimizeButton.Text = "−"
+        MinimizeButton.Text = "-"
     end
 end)
 
@@ -618,6 +725,7 @@ end)
 -- Initialize
 switchTab(playerTab)
 
-print("⚡ ZeroHub v1.0 loaded successfully!")
-print("📋 Tabs: Player, Inf Blocks")
-print("🎨 Theme: Cyan/Blue/Black with gradients")
+print("[ZeroHub] v1.1 loaded successfully!")
+print("[ZeroHub] Tabs: Player, Inf Blocks")
+print("[ZeroHub] Theme: Cyan/Blue/Black with gradients")
+print("[ZeroHub] Inf Blocks: 4 methods available")
