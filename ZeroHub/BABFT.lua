@@ -1,8 +1,8 @@
 --[[
     ZeroHub - Advanced Script Hub for Roblox
-    Version: 1.2
+    Version: 1.3
     Colors: Cyan, Blue, Black
-    Features: Player Mods + Infinite Blocks (Working Methods 2026)
+    Features: Player Mods + Infinite Blocks (Advanced Bypass Methods)
 ]]
 
 -- Services
@@ -19,9 +19,15 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 
+-- Debug log
+local debugLog = {}
+local function log(msg)
+    table.insert(debugLog, msg)
+    print("[ZeroHub] " .. msg)
+end
+
 -- Settings
 local settings = {
-    -- Player
     jumpPower = 50,
     walkSpeed = 16,
     gravity = 196.2,
@@ -29,12 +35,6 @@ local settings = {
     noclip = false,
     godMode = false,
     infiniteJump = false,
-    
-    -- Inf Blocks
-    autobuildBypass = false,
-    copyBuild = false,
-    placeBlockSpam = false,
-    blockDupe = false
 }
 
 -- Colors
@@ -59,8 +59,8 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 -- Main Frame
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 550, 0, 500)
-MainFrame.Position = UDim2.new(0.5, -275, 0.5, -250)
+MainFrame.Size = UDim2.new(0, 550, 0, 550)
+MainFrame.Position = UDim2.new(0.5, -275, 0.5, -275)
 MainFrame.BackgroundColor3 = colors.bg
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -77,12 +77,10 @@ mainGradient.Color = ColorSequence.new{
 mainGradient.Rotation = 135
 mainGradient.Parent = MainFrame
 
--- Corner rounding
 local mainCorner = Instance.new("UICorner")
 mainCorner.CornerRadius = UDim.new(0, 12)
 mainCorner.Parent = MainFrame
 
--- Stroke border
 local mainStroke = Instance.new("UIStroke")
 mainStroke.Color = colors.accent
 mainStroke.Thickness = 2
@@ -100,7 +98,6 @@ local titleCorner = Instance.new("UICorner")
 titleCorner.CornerRadius = UDim.new(0, 12)
 titleCorner.Parent = TitleBar
 
--- Title Gradient
 local titleGradient = Instance.new("UIGradient")
 titleGradient.Color = ColorSequence.new{
     ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 150, 220)),
@@ -109,7 +106,7 @@ titleGradient.Color = ColorSequence.new{
 titleGradient.Rotation = 90
 titleGradient.Parent = TitleBar
 
--- Logo (ZH)
+-- Logo
 local LogoFrame = Instance.new("Frame")
 LogoFrame.Size = UDim2.new(0, 50, 0, 50)
 LogoFrame.Position = UDim2.new(0, 10, 0, 0)
@@ -125,12 +122,11 @@ LogoText.TextSize = 28
 LogoText.Font = Enum.Font.GothamBlack
 LogoText.Parent = LogoFrame
 
--- Title Text
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -150, 1, 0)
 Title.Position = UDim2.new(0, 65, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub v1.2"
+Title.Text = "ZeroHub v1.3"
 Title.TextColor3 = colors.text
 Title.TextSize = 24
 Title.Font = Enum.Font.GothamBold
@@ -192,7 +188,6 @@ local currentTab = nil
 local function createTab(name, icon)
     local tab = {}
     
-    -- Tab Button
     tab.button = Instance.new("TextButton")
     tab.button.Size = UDim2.new(0.5, -5, 1, 0)
     tab.button.Position = UDim2.new(#tabs * 0.5, #tabs * 5, 0, 0)
@@ -207,7 +202,6 @@ local function createTab(name, icon)
     btnCorner.CornerRadius = UDim.new(0, 8)
     btnCorner.Parent = tab.button
     
-    -- Tab Content
     tab.content = Instance.new("ScrollingFrame")
     tab.content.Size = UDim2.new(1, -20, 1, -20)
     tab.content.Position = UDim2.new(0, 10, 0, 10)
@@ -224,7 +218,6 @@ local function createTab(name, icon)
     
     tab.listLayout = listLayout
     
-    -- Update canvas size
     tab.content.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
     listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
         tab.content.CanvasSize = UDim2.new(0, 0, 0, listLayout.AbsoluteContentSize.Y + 20)
@@ -244,20 +237,15 @@ local function switchTab(tab)
     currentTab = tab
 end
 
--- Create Tabs
 local playerTab = createTab("Player", "[P]")
 local infBlocksTab = createTab("Inf Blocks", "[B]")
+local debugTab = createTab("Debug", "[D]")
 
--- Tab Click Handlers
-playerTab.button.MouseButton1Click:Connect(function()
-    switchTab(playerTab)
-end)
+playerTab.button.MouseButton1Click:Connect(function() switchTab(playerTab) end)
+infBlocksTab.button.MouseButton1Click:Connect(function() switchTab(infBlocksTab) end)
+debugTab.button.MouseButton1Click:Connect(function() switchTab(debugTab) end)
 
-infBlocksTab.button.MouseButton1Click:Connect(function()
-    switchTab(infBlocksTab)
-end)
-
--- Helper: Create Toggle Button
+-- Helper functions
 local function createToggle(parent, text, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 45)
@@ -313,7 +301,6 @@ local function createToggle(parent, text, callback)
     return button
 end
 
--- Helper: Create Slider
 local function createSlider(parent, text, min, max, default, callback)
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(1, 0, 0, 60)
@@ -400,7 +387,6 @@ local function createSlider(parent, text, min, max, default, callback)
     return frame
 end
 
--- Helper: Create Button
 local function createButton(parent, text, callback)
     local button = Instance.new("TextButton")
     button.Size = UDim2.new(1, 0, 0, 40)
@@ -502,150 +488,215 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- INF BLOCKS TAB FUNCTIONS (Working Methods 2026)
+-- INF BLOCKS ADVANCED METHODS
 
--- Helper: Find remotes
-local function findRemote(name)
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:FindFirstChild("RemoteEvents")
-    if remotes then
-        return remotes:FindFirstChild(name)
+-- Method 1: Scan and log all remotes
+local function scanRemotes()
+    log("Scanning for remotes...")
+    local remotes = {}
+    
+    -- Scan ReplicatedStorage
+    for _, obj in pairs(ReplicatedStorage:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            table.insert(remotes, {
+                name = obj.Name,
+                path = obj:GetFullName(),
+                type = obj.ClassName
+            })
+            log("Found: " .. obj:GetFullName() .. " (" .. obj.ClassName .. ")")
+        end
     end
-    return nil
+    
+    -- Scan workspace
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+            table.insert(remotes, {
+                name = obj.Name,
+                path = obj:GetFullName(),
+                type = obj.ClassName
+            })
+            log("Found: " .. obj:GetFullName() .. " (" .. obj.ClassName .. ")")
+        end
+    end
+    
+    log("Total remotes found: " .. #remotes)
+    return remotes
 end
 
--- Helper: Get player's building area
-local function getBuildingArea()
-    return workspace:FindFirstChild(player.Name .. "'s Building Area") or 
-           workspace:FindFirstChild(player.Name) or
-           workspace:FindFirstChild("BuildingArea")
-end
-
--- Method 1: Place Block Spam - Rapidly place blocks using RemoteFunction
-local function placeBlockSpam()
-    pcall(function()
-        local placeBlockRemote = findRemote("PlaceBlock") or findRemote("BuildBlock") or findRemote("Place")
-        if not placeBlockRemote then
-            -- Try to find in player's tools
-            local backpack = player:FindFirstChild("Backpack")
-            if backpack then
-                for _, tool in pairs(backpack:GetChildren()) do
-                    if tool:IsA("Tool") then
-                        local remote = tool:FindFirstChild("PlaceBlockRF") or tool:FindFirstChild("BuildRF")
-                        if remote and remote:IsA("RemoteFunction") then
-                            placeBlockRemote = remote
-                            break
+-- Method 2: Network hook - intercept and modify remote calls
+local function setupNetworkHook()
+    log("Setting up network hook...")
+    
+    local success, err = pcall(function()
+        local mt = getrawmetatable(game)
+        if mt then
+            local oldNamecall = mt.__namecall
+            
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                
+                -- Log all remote calls
+                if method == "FireServer" or method == "InvokeServer" then
+                    local args = {...}
+                    log("Remote call: " .. self:GetFullName() .. "." .. method)
+                    
+                    -- Try to modify block-related calls
+                    if args[1] and type(args[1]) == "string" then
+                        local name = tostring(args[1]):lower()
+                        if string.find(name, "block") or string.find(name, "place") or string.find(name, "build") then
+                            log("Intercepted block call: " .. name)
+                            -- Allow the call to proceed
                         end
                     end
                 end
+                
+                return oldNamecall(self, ...)
+            end)
+            
+            log("Network hook installed successfully")
+        else
+            log("ERROR: Cannot get raw metatable")
+        end
+    end)
+    
+    if not success then
+        log("ERROR: " .. tostring(err))
+    end
+end
+
+-- Method 3: Force place block using found remotes
+local function forcePlaceBlock()
+    log("Attempting to force place blocks...")
+    
+    local remotes = scanRemotes()
+    local placeRemotes = {}
+    
+    -- Find potential place block remotes
+    for _, remote in pairs(remotes) do
+        local name = remote.name:lower()
+        if string.find(name, "place") or string.find(name, "build") or 
+           string.find(name, "spawn") or string.find(name, "create") then
+            table.insert(placeRemotes, remote)
+            log("Potential place remote: " .. remote.path)
+        end
+    end
+    
+    if #placeRemotes == 0 then
+        log("ERROR: No place remotes found")
+        return
+    end
+    
+    -- Try each remote
+    for _, remote in pairs(placeRemotes) do
+        log("Trying remote: " .. remote.path)
+        
+        local obj = ReplicatedStorage:FindFirstChild(remote.name, true)
+        if obj then
+            pcall(function()
+                local pos = rootPart.CFrame * CFrame.new(0, -5, 0)
+                
+                if obj:IsA("RemoteFunction") then
+                    local result = obj:InvokeServer("Wood Block", pos)
+                    log("InvokeServer result: " .. tostring(result))
+                else
+                    obj:FireServer("Wood Block", pos)
+                    log("FireServer called")
+                end
+            end)
+        end
+    end
+end
+
+-- Method 4: Memory manipulation - directly modify game state
+local function memoryManipulation()
+    log("Attempting memory manipulation...")
+    
+    pcall(function()
+        -- Find player's inventory/data
+        local playerData = player:FindFirstChild("PlayerData") or 
+                          player:FindFirstChild("Data") or
+                          player:FindFirstChild("Stats")
+        
+        if playerData then
+            log("Found player data: " .. playerData:GetFullName())
+            
+            -- Modify all numeric values related to blocks
+            for _, value in pairs(playerData:GetDescendants()) do
+                if value:IsA("IntValue") or value:IsA("NumberValue") then
+                    local name = value.Name:lower()
+                    if string.find(name, "block") or string.find(name, "wood") or 
+                       string.find(name, "stone") or string.find(name, "iron") or
+                       string.find(name, "gold") or string.find(name, "count") or
+                       string.find(name, "amount") or string.find(name, "inventory") then
+                        pcall(function()
+                            value.Value = 999999999
+                            log("Modified: " .. value:GetFullName() .. " = 999999999")
+                        end)
+                    end
+                end
             end
+        else
+            log("WARNING: Player data not found")
         end
         
-        if placeBlockRemote then
-            local buildingArea = getBuildingArea()
-            if buildingArea then
-                local basePos = buildingArea.PrimaryPart and buildingArea.PrimaryPart.CFrame or CFrame.new(0, 10, 0)
-                
-                -- Spam place block calls
-                for i = 1, 100 do
-                    pcall(function()
-                        local pos = basePos * CFrame.new(math.random(-50, 50), 0, math.random(-50, 50))
-                        if placeBlockRemote:IsA("RemoteFunction") then
-                            placeBlockRemote:InvokeServer("Wood Block", pos)
-                        else
-                            placeBlockRemote:FireServer("Wood Block", pos)
-                        end
-                    end)
-                    wait(0.01)
-                end
-            end
-        end
-    end)
-end
-
--- Method 2: Copy Build - Copy another player's build
-local function copyBuild()
-    pcall(function()
-        -- Find other players' builds
-        for _, otherPlayer in pairs(Players:GetPlayers()) do
-            if otherPlayer ~= player then
-                local otherBuild = workspace:FindFirstChild(otherPlayer.Name .. "'s Building Area") or
-                                   workspace:FindFirstChild(otherPlayer.Name)
-                if otherBuild then
-                    -- Try to find copy remote
-                    local copyRemote = findRemote("CopyBuild") or findRemote("StealBuild") or findRemote("CloneBuild")
-                    if copyRemote then
-                        if copyRemote:IsA("RemoteFunction") then
-                            copyRemote:InvokeServer(otherPlayer)
-                        else
-                            copyRemote:FireServer(otherPlayer)
-                        end
-                        break
-                    end
-                    
-                    -- Manual copy: iterate through blocks and place them
-                    local placeRemote = findRemote("PlaceBlock") or findRemote("BuildBlock")
-                    if placeRemote then
-                        local myBuild = getBuildingArea()
-                        if myBuild then
-                            for _, block in pairs(otherBuild:GetDescendants()) do
-                                if block:IsA("BasePart") and block.Name ~= "Base" then
-                                    pcall(function()
-                                        local relativePos = block.CFrame
-                                        if placeRemote:IsA("RemoteFunction") then
-                                            placeRemote:InvokeServer(block.Name, relativePos)
-                                        else
-                                            placeRemote:FireServer(block.Name, relativePos)
-                                        end
-                                    end)
-                                    wait(0.05)
-                                end
+        -- Try to find and modify building tools
+        local backpack = player:FindFirstChild("Backpack")
+        if backpack then
+            for _, tool in pairs(backpack:GetChildren()) do
+                if tool:IsA("Tool") then
+                    local name = tool.Name:lower()
+                    if string.find(name, "block") or string.find(name, "build") or string.find(name, "hammer") then
+                        log("Found building tool: " .. tool.Name)
+                        
+                        -- Try to find and modify tool's internal values
+                        for _, value in pairs(tool:GetDescendants()) do
+                            if value:IsA("IntValue") or value:IsA("NumberValue") then
+                                pcall(function()
+                                    value.Value = 999999999
+                                    log("Modified tool value: " .. value:GetFullName())
+                                end)
                             end
                         end
                     end
-                    break
                 end
             end
         end
     end)
+    
+    log("Memory manipulation complete")
 end
 
--- Method 3: Block Dupe - Duplicate existing blocks
-local function blockDupe()
+-- Method 5: Aggressive bypass - hook everything
+local function aggressiveBypass()
+    log("Starting aggressive bypass...")
+    
+    -- Hook metatable
     pcall(function()
-        local buildingArea = getBuildingArea()
-        if buildingArea then
-            -- Find any placed block
-            local targetBlock = nil
-            for _, child in pairs(buildingArea:GetDescendants()) do
-                if child:IsA("BasePart") and child.Name ~= "Base" and child.Name ~= "Foundation" then
-                    targetBlock = child
-                    break
-                end
-            end
+        local mt = getrawmetatable(game)
+        if mt and not mt.__metatable then
+            local oldIndex = mt.__index
+            local oldNewindex = mt.__newindex
             
-            if targetBlock then
-                local dupeRemote = findRemote("DuplicateBlock") or findRemote("CopyBlock") or findRemote("Clone")
-                if dupeRemote then
-                    for i = 1, 100 do
-                        pcall(function()
-                            if dupeRemote:IsA("RemoteFunction") then
-                                dupeRemote:InvokeServer(targetBlock)
-                            else
-                                dupeRemote:FireServer(targetBlock)
-                            end
-                        end)
-                        wait(0.02)
-                    end
+            mt.__index = newcclosure(function(self, key)
+                if key == "MaxBlocks" or key == "BlockLimit" or key == "maxBlocks" or key == "blockLimit" then
+                    return 999999999
                 end
-            end
+                return oldIndex(self, key)
+            end)
+            
+            mt.__newindex = newcclosure(function(self, key, value)
+                if key == "MaxBlocks" or key == "BlockLimit" or key == "maxBlocks" or key == "blockLimit" then
+                    value = 999999999
+                end
+                return oldNewindex(self, key, value)
+            end)
+            
+            log("Metatable hooks installed")
         end
     end)
-end
-
--- Method 4: Autobuild Bypass - Hook into build system
-local function autobuildBypass()
+    
+    -- Hook all LocalScripts
     pcall(function()
-        -- Hook into LocalScripts that check block limits
         local playerGui = player:FindFirstChild("PlayerGui")
         if playerGui then
             for _, gui in pairs(playerGui:GetDescendants()) do
@@ -653,52 +704,27 @@ local function autobuildBypass()
                     pcall(function()
                         local env = getfenv(gui)
                         if env then
-                            -- Override block limit variables
                             env.MaxBlocks = 999999999
                             env.BlockLimit = 999999999
                             env.maxBlocks = 999999999
                             env.blockLimit = 999999999
+                            env.MAX_BLOCKS = 999999999
+                            env.BLOCK_LIMIT = 999999999
+                            log("Hooked LocalScript: " .. gui:GetFullName())
                         end
                     end)
                 end
             end
         end
-        
-        -- Try to modify player data
-        local playerData = player:FindFirstChild("PlayerData") or player:FindFirstChild("Data")
-        if playerData then
-            for _, value in pairs(playerData:GetDescendants()) do
-                if value:IsA("IntValue") or value:IsA("NumberValue") then
-                    local name = value.Name:lower()
-                    if string.find(name, "block") or string.find(name, "limit") or string.find(name, "max") then
-                        pcall(function()
-                            value.Value = 999999999
-                        end)
-                    end
-                end
-            end
-        end
-        
-        -- Hook metatable
-        local mt = getrawmetatable(game)
-        if mt then
-            local oldNamecall = mt.__namecall
-            mt.__namecall = newcclosure(function(self, ...)
-                local method = getnamecallmethod()
-                if method == "InvokeServer" or method == "FireServer" then
-                    local args = {...}
-                    -- Check if this is a block placement call
-                    if args[1] and type(args[1]) == "string" then
-                        local name = args[1]:lower()
-                        if string.find(name, "block") or string.find(name, "wood") or string.find(name, "stone") then
-                            -- Allow the call to go through
-                        end
-                    end
-                end
-                return oldNamecall(self, ...)
-            end)
-        end
     end)
+    
+    -- Modify all player data
+    memoryManipulation()
+    
+    -- Setup network hook
+    setupNetworkHook()
+    
+    log("Aggressive bypass complete")
 end
 
 -- Populate Player Tab
@@ -724,10 +750,10 @@ createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 
 -- Populate Inf Blocks Tab
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 120)
+infoLabel.Size = UDim2.new(1, 0, 0, 140)
 infoLabel.BackgroundColor3 = colors.button
 infoLabel.BorderSizePixel = 0
-infoLabel.Text = "[INFO] Infinite Blocks - Working Methods 2026\n\nIMPORTANT: You need to buy at least 1 block of each type first!\n\n1. Place Block Spam - Rapidly places blocks (requires PlaceBlock remote)\n2. Copy Build - Copies other players' builds (requires 1 block each type)\n3. Block Dupe - Duplicates your placed blocks\n4. Autobuild Bypass - Removes build limits (run once before building)"
+infoLabel.Text = "[INFO] Advanced Infinite Blocks v1.3\n\nThese methods use advanced bypass techniques.\nRun them in order for best results.\n\n1. Scan Remotes - Find all network calls\n2. Setup Network Hook - Intercept remote calls\n3. Aggressive Bypass - Hook everything (run this first!)\n4. Force Place Block - Try to place blocks\n5. Memory Manipulation - Modify game state"
 infoLabel.TextColor3 = colors.textDim
 infoLabel.TextSize = 11
 infoLabel.Font = Enum.Font.Gotham
@@ -740,17 +766,17 @@ local infoCorner = Instance.new("UICorner")
 infoCorner.CornerRadius = UDim.new(0, 8)
 infoCorner.Parent = infoLabel
 
-createButton(infBlocksTab.content, "1. Place Block Spam (100 blocks)", placeBlockSpam)
-createButton(infBlocksTab.content, "2. Copy Build (from other player)", copyBuild)
-createButton(infBlocksTab.content, "3. Block Dupe (100 duplicates)", blockDupe)
-createButton(infBlocksTab.content, "4. Autobuild Bypass (run once)", autobuildBypass)
+createButton(infBlocksTab.content, "1. Scan Remotes", scanRemotes)
+createButton(infBlocksTab.content, "2. Setup Network Hook", setupNetworkHook)
+createButton(infBlocksTab.content, "3. Aggressive Bypass (RUN FIRST)", aggressiveBypass)
+createButton(infBlocksTab.content, "4. Force Place Block", forcePlaceBlock)
+createButton(infBlocksTab.content, "5. Memory Manipulation", memoryManipulation)
 
--- Warning label
 local warningLabel = Instance.new("TextLabel")
-warningLabel.Size = UDim2.new(1, 0, 0, 60)
+warningLabel.Size = UDim2.new(1, 0, 0, 80)
 warningLabel.BackgroundColor3 = Color3.fromRGB(60, 30, 30)
 warningLabel.BorderSizePixel = 0
-warningLabel.Text = "[WARNING]\nThese methods may not work on all servers.\nTry different methods if one doesn't work.\nSome methods require specific remotes to exist."
+warningLabel.Text = "[IMPORTANT]\n1. Run 'Aggressive Bypass' FIRST\n2. Check Debug tab for logs\n3. Buy at least 1 block before trying\n4. If server validates everything, these may not work\n5. Try on private server first"
 warningLabel.TextColor3 = Color3.fromRGB(255, 150, 150)
 warningLabel.TextSize = 11
 warningLabel.Font = Enum.Font.Gotham
@@ -763,6 +789,52 @@ local warningCorner = Instance.new("UICorner")
 warningCorner.CornerRadius = UDim.new(0, 8)
 warningCorner.Parent = warningLabel
 
+-- Populate Debug Tab
+local debugTextBox = Instance.new("TextBox")
+debugTextBox.Size = UDim2.new(1, 0, 1, -50)
+debugTextBox.BackgroundColor3 = colors.bg
+debugTextBox.TextColor3 = colors.text
+debugTextBox.TextSize = 12
+debugTextBox.Font = Enum.Font.Code
+debugTextBox.Text = ""
+debugTextBox.ClearTextOnFocus = false
+debugTextBox.MultiLine = true
+debugTextBox.TextXAlignment = Enum.TextXAlignment.Left
+debugTextBox.TextYAlignment = Enum.TextYAlignment.Top
+debugTextBox.Parent = debugTab.content
+
+local debugCorner = Instance.new("UICorner")
+debugCorner.CornerRadius = UDim.new(0, 8)
+debugCorner.Parent = debugTextBox
+
+local refreshButton = Instance.new("TextButton")
+refreshButton.Size = UDim2.new(1, 0, 0, 40)
+refreshButton.Position = UDim2.new(0, 0, 1, -40)
+refreshButton.BackgroundColor3 = colors.accent
+refreshButton.Text = "Refresh Log"
+refreshButton.TextColor3 = colors.text
+refreshButton.TextSize = 16
+refreshButton.Font = Enum.Font.GothamBold
+refreshButton.Parent = debugTab.content
+
+local refreshCorner = Instance.new("UICorner")
+refreshCorner.CornerRadius = UDim.new(0, 8)
+refreshCorner.Parent = refreshButton
+
+refreshButton.MouseButton1Click:Connect(function()
+    debugTextBox.Text = table.concat(debugLog, "\n")
+end)
+
+-- Auto-refresh debug log every 2 seconds
+spawn(function()
+    while ScreenGui.Parent do
+        wait(2)
+        if currentTab == debugTab then
+            debugTextBox.Text = table.concat(debugLog, "\n")
+        end
+    end
+end)
+
 -- Control Button Handlers
 local minimized = false
 
@@ -774,7 +846,7 @@ MinimizeButton.MouseButton1Click:Connect(function()
         TabContainer.Visible = false
         MinimizeButton.Text = "+"
     else
-        MainFrame.Size = UDim2.new(0, 550, 0, 500)
+        MainFrame.Size = UDim2.new(0, 550, 0, 550)
         ContentArea.Visible = true
         TabContainer.Visible = true
         MinimizeButton.Text = "-"
@@ -783,7 +855,6 @@ end)
 
 CloseButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
-    -- Cleanup
     RunService:UnbindFromRenderStep("ZeroHub_Fly")
     RunService:UnbindFromRenderStep("ZeroHub_Noclip")
 end)
@@ -791,6 +862,6 @@ end)
 -- Initialize
 switchTab(playerTab)
 
-print("[ZeroHub] v1.2 loaded!")
-print("[ZeroHub] Inf Blocks: 4 working methods")
-print("[ZeroHub] NOTE: Buy at least 1 block of each type first!")
+log("ZeroHub v1.3 loaded!")
+log("Features: Player mods + Advanced Inf Blocks")
+log("Check Debug tab for detailed logs")
