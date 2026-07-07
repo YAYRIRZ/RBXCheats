@@ -1,6 +1,7 @@
 --[[
-    ZeroHub v1.4 - BABFT Infinite Blocks
-    Based on discovered remotes from game analysis
+    ZeroHub v1.5 - BABFT Infinite Blocks
+    Based on discovered ScalingTool.RF method
+    Fixed GUI with compact tabs
 ]]
 
 -- Services
@@ -31,6 +32,7 @@ local settings = {
     noclip = false,
     godMode = false,
     infiniteJump = false,
+    infBlocks = false,
 }
 
 -- Colors
@@ -52,8 +54,8 @@ ScreenGui.Name = "ZeroHub"
 ScreenGui.Parent = game.CoreGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 600, 0, 600)
-MainFrame.Position = UDim2.new(0.5, -300, 0.5, -300)
+MainFrame.Size = UDim2.new(0, 600, 0, 550)
+MainFrame.Position = UDim2.new(0.5, -300, 0.5, -275)
 MainFrame.BackgroundColor3 = colors.bg
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -80,7 +82,7 @@ mainStroke.Parent = MainFrame
 
 -- Title Bar
 local TitleBar = Instance.new("Frame")
-TitleBar.Size = UDim2.new(1, 0, 0, 50)
+TitleBar.Size = UDim2.new(1, 0, 0, 45)
 TitleBar.BackgroundColor3 = colors.panel
 TitleBar.Parent = MainFrame
 
@@ -92,16 +94,16 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -100, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub v1.4 - BABFT Inf Blocks"
+Title.Text = "ZeroHub v1.5 - BABFT Inf Blocks"
 Title.TextColor3 = colors.text
-Title.TextSize = 22
+Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
 Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = TitleBar
 
 local CloseButton = Instance.new("TextButton")
 CloseButton.Size = UDim2.new(0, 35, 0, 35)
-CloseButton.Position = UDim2.new(1, -42, 0, 7)
+CloseButton.Position = UDim2.new(1, -42, 0, 5)
 CloseButton.BackgroundColor3 = colors.danger
 CloseButton.Text = "X"
 CloseButton.TextColor3 = colors.text
@@ -113,17 +115,33 @@ local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 8)
 closeCorner.Parent = CloseButton
 
--- Tab Container
+-- Tab Container with ScrollingFrame for many tabs
+local TabScrollFrame = Instance.new("ScrollingFrame")
+TabScrollFrame.Size = UDim2.new(1, -20, 0, 35)
+TabScrollFrame.Position = UDim2.new(0, 10, 0, 55)
+TabScrollFrame.BackgroundTransparency = 1
+TabScrollFrame.ScrollBarThickness = 0
+TabScrollFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+TabScrollFrame.Parent = MainFrame
+
 local TabContainer = Instance.new("Frame")
-TabContainer.Size = UDim2.new(1, -20, 0, 40)
-TabContainer.Position = UDim2.new(0, 10, 0, 60)
+TabContainer.Size = UDim2.new(1, 0, 1, 0)
 TabContainer.BackgroundTransparency = 1
-TabContainer.Parent = MainFrame
+TabContainer.Parent = TabScrollFrame
+
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.Padding = UDim.new(0, 5)
+tabLayout.Parent = TabContainer
+
+tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+    TabScrollFrame.CanvasSize = UDim2.new(0, tabLayout.AbsoluteContentSize.X + 10, 0, 0)
+end)
 
 -- Content Area
 local ContentArea = Instance.new("Frame")
-ContentArea.Size = UDim2.new(1, -20, 1, -120)
-ContentArea.Position = UDim2.new(0, 10, 0, 110)
+ContentArea.Size = UDim2.new(1, -20, 1, -110)
+ContentArea.Position = UDim2.new(0, 10, 0, 100)
 ContentArea.BackgroundColor3 = colors.panel
 ContentArea.Parent = MainFrame
 
@@ -138,14 +156,14 @@ local function createTab(name)
     local tab = {}
     
     tab.button = Instance.new("TextButton")
-    tab.button.Size = UDim2.new(1/#tabs - 0.02, 0, 1, 0)
-    tab.button.Position = UDim2.new((#tabs) * (1/#tabs), 0, 0, 0)
+    tab.button.Size = UDim2.new(0, 100, 1, 0)
     tab.button.BackgroundColor3 = colors.button
     tab.button.Text = name
     tab.button.TextColor3 = colors.text
-    tab.button.TextSize = 16
+    tab.button.TextSize = 14
     tab.button.Font = Enum.Font.GothamBold
     tab.button.Parent = TabContainer
+    tab.button.LayoutOrder = #tabs
     
     local btnCorner = Instance.new("UICorner")
     btnCorner.CornerRadius = UDim.new(0, 8)
@@ -192,11 +210,11 @@ debugTab.button.MouseButton1Click:Connect(function() switchTab(debugTab) end)
 -- Helper functions
 local function createButton(parent, text, callback)
     local button = Instance.new("TextButton")
-    button.Size = UDim2.new(1, 0, 0, 45)
+    button.Size = UDim2.new(1, 0, 0, 40)
     button.BackgroundColor3 = colors.accent
     button.Text = text
     button.TextColor3 = colors.text
-    button.TextSize = 16
+    button.TextSize = 14
     button.Font = Enum.Font.GothamBold
     button.Parent = parent
     
@@ -210,7 +228,7 @@ end
 
 local function createToggle(parent, text, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 45)
+    frame.Size = UDim2.new(1, 0, 0, 40)
     frame.BackgroundColor3 = colors.button
     frame.Parent = parent
     
@@ -224,18 +242,18 @@ local function createToggle(parent, text, callback)
     label.BackgroundTransparency = 1
     label.Text = text
     label.TextColor3 = colors.text
-    label.TextSize = 16
+    label.TextSize = 14
     label.Font = Enum.Font.Gotham
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
     
     local button = Instance.new("TextButton")
-    button.Size = UDim2.new(0, 55, 0, 28)
-    button.Position = UDim2.new(1, -65, 0.5, -14)
+    button.Size = UDim2.new(0, 55, 0, 25)
+    button.Position = UDim2.new(1, -65, 0.5, -12)
     button.BackgroundColor3 = colors.buttonHover
     button.Text = "OFF"
     button.TextColor3 = colors.textDim
-    button.TextSize = 14
+    button.TextSize = 12
     button.Font = Enum.Font.GothamBold
     button.Parent = frame
     
@@ -258,7 +276,7 @@ end
 
 local function createSlider(parent, text, min, max, default, callback)
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 0, 60)
+    frame.Size = UDim2.new(1, 0, 0, 55)
     frame.BackgroundColor3 = colors.button
     frame.Parent = parent
     
@@ -267,19 +285,19 @@ local function createSlider(parent, text, min, max, default, callback)
     corner.Parent = frame
     
     local label = Instance.new("TextLabel")
-    label.Size = UDim2.new(1, -20, 0, 25)
+    label.Size = UDim2.new(1, -20, 0, 20)
     label.Position = UDim2.new(0, 15, 0, 5)
     label.BackgroundTransparency = 1
     label.Text = text .. ": " .. default
     label.TextColor3 = colors.text
-    label.TextSize = 14
+    label.TextSize = 13
     label.Font = Enum.Font.Gotham
     label.TextXAlignment = Enum.TextXAlignment.Left
     label.Parent = frame
     
     local sliderBg = Instance.new("Frame")
-    sliderBg.Size = UDim2.new(1, -30, 0, 8)
-    sliderBg.Position = UDim2.new(0, 15, 0, 35)
+    sliderBg.Size = UDim2.new(1, -30, 0, 6)
+    sliderBg.Position = UDim2.new(0, 15, 0, 30)
     sliderBg.BackgroundColor3 = colors.bg
     sliderBg.Parent = frame
     
@@ -297,8 +315,8 @@ local function createSlider(parent, text, min, max, default, callback)
     fillCorner.Parent = sliderFill
     
     local sliderButton = Instance.new("TextButton")
-    sliderButton.Size = UDim2.new(0, 20, 0, 20)
-    sliderButton.Position = UDim2.new((default - min) / (max - min), -10, 0.5, -10)
+    sliderButton.Size = UDim2.new(0, 16, 0, 16)
+    sliderButton.Position = UDim2.new((default - min) / (max - min), -8, 0.5, -8)
     sliderButton.BackgroundColor3 = colors.text
     sliderButton.Text = ""
     sliderButton.Parent = sliderBg
@@ -329,7 +347,7 @@ local function createSlider(parent, text, min, max, default, callback)
             local value = math.floor(min + (max - min) * percentage)
             
             sliderFill.Size = UDim2.new(percentage, 0, 1, 0)
-            sliderButton.Position = UDim2.new(percentage, -10, 0.5, -10)
+            sliderButton.Position = UDim2.new(percentage, -8, 0.5, -8)
             label.Text = text .. ": " .. value
             
             callback(value)
@@ -400,171 +418,135 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- INFINITE BLOCKS METHODS (Based on discovered remotes)
-
--- Method 1: QueueBlocksRequest spam
-local function queueBlocksSpam()
-    log("Method 1: QueueBlocksRequest spam")
+-- INFINITE BLOCKS - Based on ScalingTool.RF method
+local function equipAllTools()
+    local backpack = player:FindFirstChild("Backpack")
+    if not backpack then return end
     
-    local queueRemote = ReplicatedStorage:FindFirstChild("InputLocalScript", true)
-    if queueRemote then
-        queueRemote = queueRemote:FindFirstChild("QueueBlocksRequest")
-    end
-    
-    if not queueRemote then
-        log("ERROR: QueueBlocksRequest not found")
-        return
-    end
-    
-    log("Found QueueBlocksRequest, spamming...")
-    
-    for i = 1, 100 do
-        pcall(function()
-            -- Try different argument formats
-            queueRemote:FireServer("WoodBlock", 1)
-            queueRemote:FireServer("Wood Block", 1)
-            queueRemote:FireServer({blockType = "WoodBlock", count = 1})
-            queueRemote:FireServer(1, "WoodBlock")
-        end)
-        wait(0.05)
-    end
-    
-    log("QueueBlocksRequest spam complete")
-end
-
--- Method 2: BlockRequestsRemote spam
-local function blockRequestsSpam()
-    log("Method 2: BlockRequestsRemote spam")
-    
-    local blockRemote = workspace:FindFirstChild("BlockRequestsRemote")
-    
-    if not blockRemote then
-        log("ERROR: BlockRequestsRemote not found")
-        return
-    end
-    
-    log("Found BlockRequestsRemote, spamming...")
-    
-    for i = 1, 100 do
-        pcall(function()
-            blockRemote:FireServer("WoodBlock", 1)
-            blockRemote:FireServer("Wood Block", 1)
-            blockRemote:FireServer({type = "WoodBlock", amount = 1})
-        end)
-        wait(0.05)
-    end
-    
-    log("BlockRequestsRemote spam complete")
-end
-
--- Method 3: InstaLoadFunction
-local function instaLoadBypass()
-    log("Method 3: InstaLoadFunction bypass")
-    
-    local instaLoad = workspace:FindFirstChild("InstaLoadFunction")
-    
-    if not instaLoad then
-        log("ERROR: InstaLoadFunction not found")
-        return
-    end
-    
-    log("Found InstaLoadFunction, attempting bypass...")
-    
-    pcall(function()
-        -- Try to load a build with many blocks
-        local result = instaLoad:InvokeServer("default", 999999)
-        log("InstaLoad result: " .. tostring(result))
-    end)
-    
-    log("InstaLoadFunction bypass complete")
-end
-
--- Method 4: ItemBoughtFromShop (from GitHub script)
-local function itemBoughtSpam()
-    log("Method 4: ItemBoughtFromShop spam (GitHub method)")
-    
-    local buyRemote = workspace:FindFirstChild("ItemBoughtFromShop")
-    
-    if not buyRemote then
-        log("ERROR: ItemBoughtFromShop not found")
-        return
-    end
-    
-    log("Found ItemBoughtFromShop, spamming chests...")
-    
-    -- Based on GitHub script: workspace.ItemBoughtFromShop:InvokeServer('Winter Chest', 6)
-    for i = 1, 50 do
-        pcall(function()
-            buyRemote:InvokeServer("Winter Chest", 6)
-            buyRemote:InvokeServer("Basic Chest", 1)
-            buyRemote:InvokeServer("Gold Chest", 10)
-        end)
-        wait(0.1)
-    end
-    
-    log("ItemBoughtFromShop spam complete")
-end
-
--- Method 5: SaveBoatData manipulation
-local function saveBoatDataManip()
-    log("Method 5: SaveBoatData manipulation")
-    
-    local saveRemote = workspace:FindFirstChild("SaveBoatData")
-    
-    if not saveRemote then
-        log("ERROR: SaveBoatData not found")
-        return
-    end
-    
-    log("Found SaveBoatData, attempting manipulation...")
-    
-    pcall(function()
-        -- Try to save boat data with infinite blocks
-        local boatData = {
-            blocks = {},
-            blockCount = 999999
-        }
-        
-        -- Add many blocks to the data
-        for i = 1, 1000 do
-            table.insert(boatData.blocks, {
-                type = "WoodBlock",
-                position = Vector3.new(i, 0, 0),
-                rotation = CFrame.new()
-            })
+    for _, tool in pairs(backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            pcall(function()
+                tool.Parent = character
+            end)
         end
-        
-        local result = saveRemote:InvokeServer(boatData)
-        log("SaveBoatData result: " .. tostring(result))
-    end)
-    
-    log("SaveBoatData manipulation complete")
+    end
 end
 
--- Method 6: Combined approach
-local function combinedApproach()
-    log("Method 6: Combined approach (all methods)")
+local function getBlockID(blockName)
+    local blockData = player:FindFirstChild("Data")
+    if not blockData then return 0 end
     
-    log("Running ItemBoughtSpam...")
-    itemBoughtSpam()
-    wait(1)
+    local block = blockData:FindFirstChild(blockName)
+    if not block then return 0 end
     
-    log("Running QueueBlocksSpam...")
-    queueBlocksSpam()
-    wait(1)
+    return block.Value or 0
+end
+
+local function duplicateBlocksWithScaling()
+    log("Starting block duplication with ScalingTool.RF")
     
-    log("Running BlockRequestsSpam...")
-    blockRequestsSpam()
-    wait(1)
+    -- Equip all tools
+    equipAllTools()
+    wait(0.5)
     
-    log("Running InstaLoadBypass...")
-    instaLoadBypass()
-    wait(1)
+    -- Find BuildingTool and ScalingTool
+    local placeTool = character:FindFirstChild("BuildingTool")
+    local scaleTool = player.Backpack:FindFirstChild("ScalingTool") or character:FindFirstChild("ScalingTool")
     
-    log("Running SaveBoatDataManip...")
-    saveBoatDataManip()
+    -- Move scaleTool to backpack if in character
+    if scaleTool and scaleTool.Parent ~= player.Backpack then
+        pcall(function() scaleTool.Parent = player.Backpack end)
+    end
     
-    log("Combined approach complete")
+    if not placeTool then
+        log("ERROR: BuildingTool not found")
+        return
+    end
+    
+    if not scaleTool then
+        log("ERROR: ScalingTool not found")
+        return
+    end
+    
+    local placeRF = placeTool:FindFirstChild("RF")
+    local scaleRF = scaleTool:FindFirstChild("RF")
+    
+    if not placeRF then
+        log("ERROR: BuildingTool.RF not found")
+        return
+    end
+    
+    if not scaleRF then
+        log("ERROR: ScalingTool.RF not found")
+        return
+    end
+    
+    log("Found BuildingTool.RF and ScalingTool.RF")
+    log("Starting duplication process...")
+    
+    -- Find a block to duplicate
+    local blocksFolder = workspace:FindFirstChild("Blocks")
+    if not blocksFolder then
+        log("ERROR: Blocks folder not found in workspace")
+        return
+    end
+    
+    local playerBlocks = blocksFolder:FindFirstChild(player.Name)
+    if not playerBlocks then
+        log("ERROR: Player blocks folder not found")
+        return
+    end
+    
+    -- Find first available block
+    local targetBlock = nil
+    for _, block in pairs(playerBlocks:GetChildren()) do
+        if block:IsA("Model") and block:FindFirstChild("PPart") then
+            targetBlock = block
+            break
+        end
+    end
+    
+    if not targetBlock then
+        log("ERROR: No blocks found to duplicate")
+        log("Please place at least 1 block first")
+        return
+    end
+    
+    log("Found block to duplicate: " .. targetBlock.Name)
+    
+    -- Duplicate the block multiple times using ScalingTool.RF
+    local duplicates = 0
+    for i = 1, 100 do
+        pcall(function()
+            -- Use ScalingTool.RF to duplicate
+            local args = {
+                [1] = "Duplicate",
+                [2] = targetBlock
+            }
+            
+            local result = scaleRF:InvokeServer(unpack(args))
+            duplicates = duplicates + 1
+            
+            if i % 10 == 0 then
+                log("Duplicated " .. duplicates .. " blocks")
+                wait(0.1)
+            end
+        end)
+        
+        wait(0.05)
+    end
+    
+    log("Duplication complete! Created " .. duplicates .. " duplicates")
+end
+
+local function toggleInfBlocks(enabled)
+    settings.infBlocks = enabled
+    if enabled then
+        log("Infinite Blocks enabled - running duplication")
+        spawn(duplicateBlocksWithScaling)
+    else
+        log("Infinite Blocks disabled")
+    end
 end
 
 -- Populate tabs
@@ -578,9 +560,9 @@ createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 
 -- Inf Blocks tab
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 100)
+infoLabel.Size = UDim2.new(1, 0, 0, 120)
 infoLabel.BackgroundColor3 = colors.button
-infoLabel.Text = "[INFO] Infinite Blocks Methods\n\nBased on discovered remotes from your logs.\nTry each method separately or use Combined.\nCheck Debug tab for detailed logs."
+infoLabel.Text = "[INFO] Infinite Blocks Method\n\nBased on ScalingTool.RF duplication method.\n\nIMPORTANT: You need to place at least 1 block first!\nThe script will duplicate it 100 times.\n\nCheck Debug tab for detailed logs."
 infoLabel.TextColor3 = colors.textDim
 infoLabel.TextSize = 12
 infoLabel.Font = Enum.Font.Gotham
@@ -593,12 +575,8 @@ local infoCorner = Instance.new("UICorner")
 infoCorner.CornerRadius = UDim.new(0, 8)
 infoCorner.Parent = infoLabel
 
-createButton(blocksTab.content, "1. QueueBlocksRequest Spam", queueBlocksSpam)
-createButton(blocksTab.content, "2. BlockRequestsRemote Spam", blockRequestsSpam)
-createButton(blocksTab.content, "3. InstaLoadFunction Bypass", instaLoadBypass)
-createButton(blocksTab.content, "4. ItemBoughtFromShop Spam (GitHub)", itemBoughtSpam)
-createButton(blocksTab.content, "5. SaveBoatData Manipulation", saveBoatDataManip)
-createButton(blocksTab.content, "6. Combined Approach (All)", combinedApproach)
+createToggle(blocksTab.content, "Infinite Blocks (ScalingTool.RF)", toggleInfBlocks)
+createButton(blocksTab.content, "Duplicate Blocks Once", duplicateBlocksWithScaling)
 
 -- Debug tab
 local debugTextBox = Instance.new("TextBox")
@@ -655,10 +633,7 @@ end)
 -- Initialize
 switchTab(playerTab)
 
-log("ZeroHub v1.4 loaded!")
-log("Based on discovered remotes:")
-log("- QueueBlocksRequest")
-log("- BlockRequestsRemote")
-log("- InstaLoadFunction")
-log("- ItemBoughtFromShop")
-log("- SaveBoatData")
+log("ZeroHub v1.5 loaded!")
+log("Fixed GUI with compact tabs")
+log("Infinite Blocks based on ScalingTool.RF method")
+log("Place at least 1 block before using Inf Blocks")
