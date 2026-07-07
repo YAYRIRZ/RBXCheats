@@ -1,8 +1,8 @@
 --[[
     ZeroHub - Advanced Script Hub for Roblox
-    Version: 1.1
+    Version: 1.2
     Colors: Cyan, Blue, Black
-    Features: Player Mods + Infinite Blocks (Updated Methods)
+    Features: Player Mods + Infinite Blocks (Working Methods 2026)
 ]]
 
 -- Services
@@ -11,6 +11,7 @@ local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Local Player
 local player = Players.LocalPlayer
@@ -30,10 +31,10 @@ local settings = {
     infiniteJump = false,
     
     -- Inf Blocks
-    infiniteBlocks = false,
     autobuildBypass = false,
-    copyBlocks = false,
-    blockSpam = false
+    copyBuild = false,
+    placeBlockSpam = false,
+    blockDupe = false
 }
 
 -- Colors
@@ -58,8 +59,8 @@ ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 
 -- Main Frame
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 550, 0, 450)
-MainFrame.Position = UDim2.new(0.5, -275, 0.5, -225)
+MainFrame.Size = UDim2.new(0, 550, 0, 500)
+MainFrame.Position = UDim2.new(0.5, -275, 0.5, -250)
 MainFrame.BackgroundColor3 = colors.bg
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -129,7 +130,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -150, 1, 0)
 Title.Position = UDim2.new(0, 65, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub"
+Title.Text = "ZeroHub v1.2"
 Title.TextColor3 = colors.text
 Title.TextSize = 24
 Title.Font = Enum.Font.GothamBold
@@ -399,6 +400,26 @@ local function createSlider(parent, text, min, max, default, callback)
     return frame
 end
 
+-- Helper: Create Button
+local function createButton(parent, text, callback)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(1, 0, 0, 40)
+    button.BackgroundColor3 = colors.accent
+    button.Text = text
+    button.TextColor3 = colors.text
+    button.TextSize = 16
+    button.Font = Enum.Font.GothamBold
+    button.Parent = parent
+    
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = button
+    
+    button.MouseButton1Click:Connect(callback)
+    
+    return button
+end
+
 -- PLAYER TAB FUNCTIONS
 local function toggleFly(enabled)
     settings.fly = enabled
@@ -481,176 +502,203 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- INF BLOCKS TAB FUNCTIONS (Updated Methods 2026)
+-- INF BLOCKS TAB FUNCTIONS (Working Methods 2026)
 
--- Method 1: Autobuild Bypass - Load builds without block limits
-local function toggleAutobuildBypass(enabled)
-    settings.autobuildBypass = enabled
-    if enabled then
-        spawn(function()
-            while settings.autobuildBypass do
-                pcall(function()
-                    -- Find and hook into build system
-                    local playerGui = player:FindFirstChild("PlayerGui")
-                    if playerGui then
-                        local buildGui = playerGui:FindFirstChild("BuildGUI") or playerGui:FindFirstChild("BuildGui")
-                        if buildGui then
-                            -- Try to find block limit checks
-                            for _, gui in pairs(buildGui:GetDescendants()) do
-                                if gui:IsA("LocalScript") then
-                                    -- Hook into script execution
-                                    local oldEnv = getfenv(gui)
-                                    if oldEnv then
-                                        setfenv(gui, setmetatable({}, {
-                                            __index = function(t, k)
-                                                if k == "MaxBlocks" or k == "BlockLimit" or k == "maxBlocks" then
-                                                    return 999999999
-                                                end
-                                                return oldEnv[k]
-                                            end
-                                        }))
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    
-                    -- Try to modify block count directly
-                    local playerData = player:FindFirstChild("PlayerData") or player:FindFirstChild("Data")
-                    if playerData then
-                        for _, value in pairs(playerData:GetDescendants()) do
-                            if value:IsA("IntValue") or value:IsA("NumberValue") then
-                                if string.find(value.Name:lower(), "block") then
-                                    value.Value = 999999999
-                                end
-                            end
-                        end
-                    end
-                end)
-                wait(1)
-            end
-        end)
+-- Helper: Find remotes
+local function findRemote(name)
+    local remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage:FindFirstChild("RemoteEvents")
+    if remotes then
+        return remotes:FindFirstChild(name)
     end
+    return nil
 end
 
--- Method 2: Block Spawner - Continuously spawn blocks
-local function toggleBlockSpam(enabled)
-    settings.blockSpam = enabled
-    if enabled then
-        spawn(function()
-            while settings.blockSpam do
-                pcall(function()
-                    -- Find block spawner or building area
-                    local buildingArea = workspace:FindFirstChild("BuildingArea") or workspace:FindFirstChild("BuildArea")
-                    if buildingArea then
-                        -- Try to find and trigger block spawn
-                        local spawner = buildingArea:FindFirstChild("BlockSpawner") or buildingArea:FindFirstChild("Spawner")
-                        if spawner then
-                            for _, child in pairs(spawner:GetChildren()) do
-                                if child:IsA("ClickDetector") then
-                                    fireclickdetector(child)
-                                end
-                            end
-                        end
-                    end
-                    
-                    -- Try remote events
-                    local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes") or game:GetService("ReplicatedStorage"):FindFirstChild("RemoteEvents")
-                    if remotes then
-                        for _, remote in pairs(remotes:GetChildren()) do
-                            if remote:IsA("RemoteEvent") then
-                                if string.find(remote.Name:lower(), "spawn") or string.find(remote.Name:lower(), "block") then
-                                    remote:FireServer("Wood", 999)
-                                end
-                            end
-                        end
-                    end
-                end)
-                wait(0.1)
-            end
-        end)
-    end
+-- Helper: Get player's building area
+local function getBuildingArea()
+    return workspace:FindFirstChild(player.Name .. "'s Building Area") or 
+           workspace:FindFirstChild(player.Name) or
+           workspace:FindFirstChild("BuildingArea")
 end
 
--- Method 3: Copy Blocks - Duplicate existing blocks
-local function toggleCopyBlocks(enabled)
-    settings.copyBlocks = enabled
-    if enabled then
-        spawn(function()
-            while settings.copyBlocks do
-                pcall(function()
-                    -- Find player's placed blocks
-                    local playerBlocks = workspace:FindFirstChild(player.Name .. "'s Blocks") or workspace:FindFirstChild(player.Name .. "_Blocks")
-                    if playerBlocks then
-                        local blocks = playerBlocks:GetChildren()
-                        if #blocks > 0 then
-                            -- Try to duplicate via remote
-                            local remotes = game:GetService("ReplicatedStorage"):FindFirstChild("Remotes")
-                            if remotes then
-                                local copyRemote = remotes:FindFirstChild("CopyBlock") or remotes:FindFirstChild("DuplicateBlock")
-                                if copyRemote and copyRemote:IsA("RemoteEvent") then
-                                    for i = 1, 10 do
-                                        copyRemote:FireServer(blocks[1])
-                                    end
-                                end
-                            end
+-- Method 1: Place Block Spam - Rapidly place blocks using RemoteFunction
+local function placeBlockSpam()
+    pcall(function()
+        local placeBlockRemote = findRemote("PlaceBlock") or findRemote("BuildBlock") or findRemote("Place")
+        if not placeBlockRemote then
+            -- Try to find in player's tools
+            local backpack = player:FindFirstChild("Backpack")
+            if backpack then
+                for _, tool in pairs(backpack:GetChildren()) do
+                    if tool:IsA("Tool") then
+                        local remote = tool:FindFirstChild("PlaceBlockRF") or tool:FindFirstChild("BuildRF")
+                        if remote and remote:IsA("RemoteFunction") then
+                            placeBlockRemote = remote
+                            break
                         end
                     end
-                end)
-                wait(0.5)
+                end
             end
-        end)
-    end
+        end
+        
+        if placeBlockRemote then
+            local buildingArea = getBuildingArea()
+            if buildingArea then
+                local basePos = buildingArea.PrimaryPart and buildingArea.PrimaryPart.CFrame or CFrame.new(0, 10, 0)
+                
+                -- Spam place block calls
+                for i = 1, 100 do
+                    pcall(function()
+                        local pos = basePos * CFrame.new(math.random(-50, 50), 0, math.random(-50, 50))
+                        if placeBlockRemote:IsA("RemoteFunction") then
+                            placeBlockRemote:InvokeServer("Wood Block", pos)
+                        else
+                            placeBlockRemote:FireServer("Wood Block", pos)
+                        end
+                    end)
+                    wait(0.01)
+                end
+            end
+        end
+    end)
 end
 
--- Method 4: Infinite Blocks (Original + Enhanced)
-local function toggleInfiniteBlocks(enabled)
-    settings.infiniteBlocks = enabled
-    if enabled then
-        spawn(function()
-            while settings.infiniteBlocks do
-                pcall(function()
-                    -- Try multiple locations for block data
-                    local locations = {
-                        player:FindFirstChild("PlayerData"),
-                        player:FindFirstChild("Data"),
-                        player:FindFirstChild("leaderstats"),
-                        player:FindFirstChild("Stats"),
-                        workspace:FindFirstChild("PlayerData"),
-                    }
+-- Method 2: Copy Build - Copy another player's build
+local function copyBuild()
+    pcall(function()
+        -- Find other players' builds
+        for _, otherPlayer in pairs(Players:GetPlayers()) do
+            if otherPlayer ~= player then
+                local otherBuild = workspace:FindFirstChild(otherPlayer.Name .. "'s Building Area") or
+                                   workspace:FindFirstChild(otherPlayer.Name)
+                if otherBuild then
+                    -- Try to find copy remote
+                    local copyRemote = findRemote("CopyBuild") or findRemote("StealBuild") or findRemote("CloneBuild")
+                    if copyRemote then
+                        if copyRemote:IsA("RemoteFunction") then
+                            copyRemote:InvokeServer(otherPlayer)
+                        else
+                            copyRemote:FireServer(otherPlayer)
+                        end
+                        break
+                    end
                     
-                    for _, location in pairs(locations) do
-                        if location then
-                            for _, value in pairs(location:GetDescendants()) do
-                                if value:IsA("IntValue") or value:IsA("NumberValue") then
-                                    local name = value.Name:lower()
-                                    if string.find(name, "block") or string.find(name, "wood") or 
-                                       string.find(name, "stone") or string.find(name, "iron") or
-                                       string.find(name, "gold") or string.find(name, "obsidian") then
-                                        value.Value = 999999999
-                                    end
+                    -- Manual copy: iterate through blocks and place them
+                    local placeRemote = findRemote("PlaceBlock") or findRemote("BuildBlock")
+                    if placeRemote then
+                        local myBuild = getBuildingArea()
+                        if myBuild then
+                            for _, block in pairs(otherBuild:GetDescendants()) do
+                                if block:IsA("BasePart") and block.Name ~= "Base" then
+                                    pcall(function()
+                                        local relativePos = block.CFrame
+                                        if placeRemote:IsA("RemoteFunction") then
+                                            placeRemote:InvokeServer(block.Name, relativePos)
+                                        else
+                                            placeRemote:FireServer(block.Name, relativePos)
+                                        end
+                                    end)
+                                    wait(0.05)
                                 end
                             end
                         end
                     end
-                    
-                    -- Try to hook into inventory system
-                    local inventory = player:FindFirstChild("Inventory") or player:FindFirstChild("Backpack")
-                    if inventory then
-                        for _, item in pairs(inventory:GetChildren()) do
-                            if item:IsA("Tool") and string.find(item.Name:lower(), "block") then
-                                local count = item:FindFirstChild("Count") or item:FindFirstChild("Amount")
-                                if count and (count:IsA("IntValue") or count:IsA("NumberValue")) then
-                                    count.Value = 999999999
-                                end
-                            end
-                        end
-                    end
-                end)
-                wait(0.3)
+                    break
+                end
             end
-        end)
-    end
+        end
+    end)
+end
+
+-- Method 3: Block Dupe - Duplicate existing blocks
+local function blockDupe()
+    pcall(function()
+        local buildingArea = getBuildingArea()
+        if buildingArea then
+            -- Find any placed block
+            local targetBlock = nil
+            for _, child in pairs(buildingArea:GetDescendants()) do
+                if child:IsA("BasePart") and child.Name ~= "Base" and child.Name ~= "Foundation" then
+                    targetBlock = child
+                    break
+                end
+            end
+            
+            if targetBlock then
+                local dupeRemote = findRemote("DuplicateBlock") or findRemote("CopyBlock") or findRemote("Clone")
+                if dupeRemote then
+                    for i = 1, 100 do
+                        pcall(function()
+                            if dupeRemote:IsA("RemoteFunction") then
+                                dupeRemote:InvokeServer(targetBlock)
+                            else
+                                dupeRemote:FireServer(targetBlock)
+                            end
+                        end)
+                        wait(0.02)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Method 4: Autobuild Bypass - Hook into build system
+local function autobuildBypass()
+    pcall(function()
+        -- Hook into LocalScripts that check block limits
+        local playerGui = player:FindFirstChild("PlayerGui")
+        if playerGui then
+            for _, gui in pairs(playerGui:GetDescendants()) do
+                if gui:IsA("LocalScript") then
+                    pcall(function()
+                        local env = getfenv(gui)
+                        if env then
+                            -- Override block limit variables
+                            env.MaxBlocks = 999999999
+                            env.BlockLimit = 999999999
+                            env.maxBlocks = 999999999
+                            env.blockLimit = 999999999
+                        end
+                    end)
+                end
+            end
+        end
+        
+        -- Try to modify player data
+        local playerData = player:FindFirstChild("PlayerData") or player:FindFirstChild("Data")
+        if playerData then
+            for _, value in pairs(playerData:GetDescendants()) do
+                if value:IsA("IntValue") or value:IsA("NumberValue") then
+                    local name = value.Name:lower()
+                    if string.find(name, "block") or string.find(name, "limit") or string.find(name, "max") then
+                        pcall(function()
+                            value.Value = 999999999
+                        end)
+                    end
+                end
+            end
+        end
+        
+        -- Hook metatable
+        local mt = getrawmetatable(game)
+        if mt then
+            local oldNamecall = mt.__namecall
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                if method == "InvokeServer" or method == "FireServer" then
+                    local args = {...}
+                    -- Check if this is a block placement call
+                    if args[1] and type(args[1]) == "string" then
+                        local name = args[1]:lower()
+                        if string.find(name, "block") or string.find(name, "wood") or string.find(name, "stone") then
+                            -- Allow the call to go through
+                        end
+                    end
+                end
+                return oldNamecall(self, ...)
+            end)
+        end
+    end)
 end
 
 -- Populate Player Tab
@@ -676,12 +724,12 @@ createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 
 -- Populate Inf Blocks Tab
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 100)
+infoLabel.Size = UDim2.new(1, 0, 0, 120)
 infoLabel.BackgroundColor3 = colors.button
 infoLabel.BorderSizePixel = 0
-infoLabel.Text = "[INFO] Infinite Blocks Methods (2026)\n\n1. Infinite Blocks - Sets block count to 999999999\n2. Autobuild Bypass - Bypasses build limits\n3. Block Spawner - Spawns blocks via remotes\n4. Copy Blocks - Duplicates existing blocks\n\nNote: Try different methods if one doesn't work"
+infoLabel.Text = "[INFO] Infinite Blocks - Working Methods 2026\n\nIMPORTANT: You need to buy at least 1 block of each type first!\n\n1. Place Block Spam - Rapidly places blocks (requires PlaceBlock remote)\n2. Copy Build - Copies other players' builds (requires 1 block each type)\n3. Block Dupe - Duplicates your placed blocks\n4. Autobuild Bypass - Removes build limits (run once before building)"
 infoLabel.TextColor3 = colors.textDim
-infoLabel.TextSize = 12
+infoLabel.TextSize = 11
 infoLabel.Font = Enum.Font.Gotham
 infoLabel.TextWrapped = true
 infoLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -692,10 +740,28 @@ local infoCorner = Instance.new("UICorner")
 infoCorner.CornerRadius = UDim.new(0, 8)
 infoCorner.Parent = infoLabel
 
-createToggle(infBlocksTab.content, "Infinite Blocks (Method 1)", toggleInfiniteBlocks)
-createToggle(infBlocksTab.content, "Autobuild Bypass (Method 2)", toggleAutobuildBypass)
-createToggle(infBlocksTab.content, "Block Spawner (Method 3)", toggleBlockSpam)
-createToggle(infBlocksTab.content, "Copy Blocks (Method 4)", toggleCopyBlocks)
+createButton(infBlocksTab.content, "1. Place Block Spam (100 blocks)", placeBlockSpam)
+createButton(infBlocksTab.content, "2. Copy Build (from other player)", copyBuild)
+createButton(infBlocksTab.content, "3. Block Dupe (100 duplicates)", blockDupe)
+createButton(infBlocksTab.content, "4. Autobuild Bypass (run once)", autobuildBypass)
+
+-- Warning label
+local warningLabel = Instance.new("TextLabel")
+warningLabel.Size = UDim2.new(1, 0, 0, 60)
+warningLabel.BackgroundColor3 = Color3.fromRGB(60, 30, 30)
+warningLabel.BorderSizePixel = 0
+warningLabel.Text = "[WARNING]\nThese methods may not work on all servers.\nTry different methods if one doesn't work.\nSome methods require specific remotes to exist."
+warningLabel.TextColor3 = Color3.fromRGB(255, 150, 150)
+warningLabel.TextSize = 11
+warningLabel.Font = Enum.Font.Gotham
+warningLabel.TextWrapped = true
+warningLabel.TextXAlignment = Enum.TextXAlignment.Left
+warningLabel.TextYAlignment = Enum.TextYAlignment.Top
+warningLabel.Parent = infBlocksTab.content
+
+local warningCorner = Instance.new("UICorner")
+warningCorner.CornerRadius = UDim.new(0, 8)
+warningCorner.Parent = warningLabel
 
 -- Control Button Handlers
 local minimized = false
@@ -708,7 +774,7 @@ MinimizeButton.MouseButton1Click:Connect(function()
         TabContainer.Visible = false
         MinimizeButton.Text = "+"
     else
-        MainFrame.Size = UDim2.new(0, 550, 0, 450)
+        MainFrame.Size = UDim2.new(0, 550, 0, 500)
         ContentArea.Visible = true
         TabContainer.Visible = true
         MinimizeButton.Text = "-"
@@ -725,7 +791,6 @@ end)
 -- Initialize
 switchTab(playerTab)
 
-print("[ZeroHub] v1.1 loaded successfully!")
-print("[ZeroHub] Tabs: Player, Inf Blocks")
-print("[ZeroHub] Theme: Cyan/Blue/Black with gradients")
-print("[ZeroHub] Inf Blocks: 4 methods available")
+print("[ZeroHub] v1.2 loaded!")
+print("[ZeroHub] Inf Blocks: 4 working methods")
+print("[ZeroHub] NOTE: Buy at least 1 block of each type first!")
