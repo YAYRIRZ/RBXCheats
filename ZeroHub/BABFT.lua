@@ -1,13 +1,12 @@
 --[[
-    ZeroHub v1.6 - BABFT Infinite Blocks
-    Fixed: Using placeRF instead of scaleRF for block creation
+    ZeroHub v1.7 - BABFT Infinite Blocks
+    Fixed: Correct placeRF arguments (7 params)
 ]]
 
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Local Player
 local player = Players.LocalPlayer
@@ -93,7 +92,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -100, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub v1.6 - BABFT Inf Blocks"
+Title.Text = "ZeroHub v1.7 - BABFT Inf Blocks"
 Title.TextColor3 = colors.text
 Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
@@ -417,20 +416,7 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- INFINITE BLOCKS - Using placeRF for block creation
-local function equipAllTools()
-    local backpack = player:FindFirstChild("Backpack")
-    if not backpack then return end
-    
-    for _, tool in pairs(backpack:GetChildren()) do
-        if tool:IsA("Tool") then
-            pcall(function()
-                tool.Parent = character
-            end)
-        end
-    end
-end
-
+-- INFINITE BLOCKS - Using correct placeRF arguments
 local function getBlockID(blockName)
     local blockData = player:FindFirstChild("Data")
     if not blockData then return 0 end
@@ -442,14 +428,16 @@ local function getBlockID(blockName)
 end
 
 local function createBlocksWithPlaceRF()
-    log("Starting block creation with placeRF")
-    
-    -- Equip all tools
-    equipAllTools()
-    wait(0.5)
+    log("Starting block creation with correct placeRF args")
     
     -- Find BuildingTool
-    local placeTool = character:FindFirstChild("BuildingTool")
+    local backpack = player:FindFirstChild("Backpack")
+    if not backpack then
+        log("ERROR: Backpack not found")
+        return
+    end
+    
+    local placeTool = backpack:FindFirstChild("BuildingTool") or character:FindFirstChild("BuildingTool")
     
     if not placeTool then
         log("ERROR: BuildingTool not found")
@@ -465,7 +453,17 @@ local function createBlocksWithPlaceRF()
     
     log("Found BuildingTool.RF")
     
-    -- Find blocks folder
+    -- Find a zone to place blocks
+    local zone = workspace:FindFirstChild("WhiteZone") or workspace:FindFirstChild("BlackZone")
+    
+    if not zone then
+        log("ERROR: No zone found (WhiteZone/BlackZone)")
+        return
+    end
+    
+    log("Found zone: " .. zone.Name)
+    
+    -- Find first available block name
     local blocksFolder = workspace:FindFirstChild("Blocks")
     if not blocksFolder then
         log("ERROR: Blocks folder not found")
@@ -478,71 +476,62 @@ local function createBlocksWithPlaceRF()
         return
     end
     
-    -- Find first available block to copy
-    local targetBlock = nil
+    -- Find first block
     local targetBlockName = nil
+    local targetBlockID = nil
     
     for _, block in pairs(playerBlocks:GetChildren()) do
-        if block:IsA("Model") and block:FindFirstChild("PPart") then
-            targetBlock = block
+        if block:IsA("Model") then
             targetBlockName = block.Name
+            targetBlockID = getBlockID(block.Name)
             break
         end
     end
     
-    if not targetBlock then
+    if not targetBlockName then
         log("ERROR: No blocks found to copy")
         log("Please place at least 1 block first")
         return
     end
     
     log("Found block to copy: " .. targetBlockName)
-    log("Block ID: " .. getBlockID(targetBlockName))
+    log("Block ID: " .. targetBlockID)
     
-    -- Get block properties
-    local pPart = targetBlock:FindFirstChild("PPart")
-    if not pPart then
-        log("ERROR: PPart not found in block")
-        return
-    end
-    
-    local blockSize = pPart.Size
-    local blockCFrame = pPart.CFrame
-    
-    log("Block size: " .. tostring(blockSize))
-    log("Block position: " .. tostring(blockCFrame))
-    
-    -- Create blocks using placeRF
+    -- Create blocks using placeRF with correct arguments
     local created = 0
-    local basePosition = rootPart.CFrame * CFrame.new(0, 5, 0)
+    local basePosition = rootPart.CFrame * CFrame.new(0, 5, -10)
     
     for i = 1, 50 do
         pcall(function()
             local offset = CFrame.new(
                 (i % 10) * 3,
-                math.floor(i / 10) * 3,
-                0
+                math.floor(i / 10) * 2,
+                math.floor(i / 5) * 3
             )
             
-            local newCFrame = basePosition * offset
+            local mainCFrame = basePosition * offset
+            local secondaryCFrame = mainCFrame * CFrame.new(0, 0, 5)
             
-            -- placeRF:InvokeServer(blockName, blockID, relative, cframe)
+            -- placeRF:InvokeServer with 7 arguments
             placeRF:InvokeServer(
-                targetBlockName,
-                getBlockID(targetBlockName),
-                playerBlocks,
-                newCFrame
+                targetBlockName,      -- 1: block name
+                targetBlockID,        -- 2: block ID
+                zone,                 -- 3: zone (WhiteZone/BlackZone)
+                mainCFrame,           -- 4: main CFrame
+                true,                 -- 5: bool arg
+                secondaryCFrame,      -- 6: secondary CFrame
+                false                 -- 7: bool arg
             )
             
             created = created + 1
             
             if i % 10 == 0 then
                 log("Created " .. created .. " blocks")
-                wait(0.2)
+                wait(0.3)
             end
         end)
         
-        wait(0.1)
+        wait(0.15)
     end
     
     log("Block creation complete! Created " .. created .. " blocks")
@@ -571,7 +560,7 @@ createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 local infoLabel = Instance.new("TextLabel")
 infoLabel.Size = UDim2.new(1, 0, 0, 120)
 infoLabel.BackgroundColor3 = colors.button
-infoLabel.Text = "[INFO] Infinite Blocks Method\n\nBased on placeRF block creation method.\n\nIMPORTANT: You need to place at least 1 block first!\nThe script will create 50 copies around you.\n\nCheck Debug tab for detailed logs."
+infoLabel.Text = "[INFO] Infinite Blocks Method\n\nBased on correct placeRF arguments (7 params).\n\nIMPORTANT: You need to place at least 1 block first!\nThe script will create 50 copies around you.\n\nCheck Debug tab for detailed logs."
 infoLabel.TextColor3 = colors.textDim
 infoLabel.TextSize = 12
 infoLabel.Font = Enum.Font.Gotham
@@ -642,7 +631,8 @@ end)
 -- Initialize
 switchTab(playerTab)
 
-log("ZeroHub v1.6 loaded!")
-log("Fixed: Using placeRF for block creation")
+log("ZeroHub v1.7 loaded!")
+log("Fixed: Correct placeRF arguments (7 params)")
+log("Arguments: blockName, blockID, zone, cframe1, true, cframe2, false")
 log("Infinite Blocks creates 50 copies of your block")
 log("Place at least 1 block before using Inf Blocks")
