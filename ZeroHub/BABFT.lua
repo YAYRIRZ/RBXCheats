@@ -1,7 +1,6 @@
 --[[
-    ZeroHub v1.5 - BABFT Infinite Blocks
-    Based on discovered ScalingTool.RF method
-    Fixed GUI with compact tabs
+    ZeroHub v1.6 - BABFT Infinite Blocks
+    Fixed: Using placeRF instead of scaleRF for block creation
 ]]
 
 -- Services
@@ -94,7 +93,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -100, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub v1.5 - BABFT Inf Blocks"
+Title.Text = "ZeroHub v1.6 - BABFT Inf Blocks"
 Title.TextColor3 = colors.text
 Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
@@ -115,7 +114,7 @@ local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 8)
 closeCorner.Parent = CloseButton
 
--- Tab Container with ScrollingFrame for many tabs
+-- Tab Container
 local TabScrollFrame = Instance.new("ScrollingFrame")
 TabScrollFrame.Size = UDim2.new(1, -20, 0, 35)
 TabScrollFrame.Position = UDim2.new(0, 10, 0, 55)
@@ -418,7 +417,7 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- INFINITE BLOCKS - Based on ScalingTool.RF method
+-- INFINITE BLOCKS - Using placeRF for block creation
 local function equipAllTools()
     local backpack = player:FindFirstChild("Backpack")
     if not backpack then return end
@@ -442,52 +441,34 @@ local function getBlockID(blockName)
     return block.Value or 0
 end
 
-local function duplicateBlocksWithScaling()
-    log("Starting block duplication with ScalingTool.RF")
+local function createBlocksWithPlaceRF()
+    log("Starting block creation with placeRF")
     
     -- Equip all tools
     equipAllTools()
     wait(0.5)
     
-    -- Find BuildingTool and ScalingTool
+    -- Find BuildingTool
     local placeTool = character:FindFirstChild("BuildingTool")
-    local scaleTool = player.Backpack:FindFirstChild("ScalingTool") or character:FindFirstChild("ScalingTool")
-    
-    -- Move scaleTool to backpack if in character
-    if scaleTool and scaleTool.Parent ~= player.Backpack then
-        pcall(function() scaleTool.Parent = player.Backpack end)
-    end
     
     if not placeTool then
         log("ERROR: BuildingTool not found")
         return
     end
     
-    if not scaleTool then
-        log("ERROR: ScalingTool not found")
-        return
-    end
-    
     local placeRF = placeTool:FindFirstChild("RF")
-    local scaleRF = scaleTool:FindFirstChild("RF")
     
     if not placeRF then
         log("ERROR: BuildingTool.RF not found")
         return
     end
     
-    if not scaleRF then
-        log("ERROR: ScalingTool.RF not found")
-        return
-    end
+    log("Found BuildingTool.RF")
     
-    log("Found BuildingTool.RF and ScalingTool.RF")
-    log("Starting duplication process...")
-    
-    -- Find a block to duplicate
+    -- Find blocks folder
     local blocksFolder = workspace:FindFirstChild("Blocks")
     if not blocksFolder then
-        log("ERROR: Blocks folder not found in workspace")
+        log("ERROR: Blocks folder not found")
         return
     end
     
@@ -497,53 +478,81 @@ local function duplicateBlocksWithScaling()
         return
     end
     
-    -- Find first available block
+    -- Find first available block to copy
     local targetBlock = nil
+    local targetBlockName = nil
+    
     for _, block in pairs(playerBlocks:GetChildren()) do
         if block:IsA("Model") and block:FindFirstChild("PPart") then
             targetBlock = block
+            targetBlockName = block.Name
             break
         end
     end
     
     if not targetBlock then
-        log("ERROR: No blocks found to duplicate")
+        log("ERROR: No blocks found to copy")
         log("Please place at least 1 block first")
         return
     end
     
-    log("Found block to duplicate: " .. targetBlock.Name)
+    log("Found block to copy: " .. targetBlockName)
+    log("Block ID: " .. getBlockID(targetBlockName))
     
-    -- Duplicate the block multiple times using ScalingTool.RF
-    local duplicates = 0
-    for i = 1, 100 do
+    -- Get block properties
+    local pPart = targetBlock:FindFirstChild("PPart")
+    if not pPart then
+        log("ERROR: PPart not found in block")
+        return
+    end
+    
+    local blockSize = pPart.Size
+    local blockCFrame = pPart.CFrame
+    
+    log("Block size: " .. tostring(blockSize))
+    log("Block position: " .. tostring(blockCFrame))
+    
+    -- Create blocks using placeRF
+    local created = 0
+    local basePosition = rootPart.CFrame * CFrame.new(0, 5, 0)
+    
+    for i = 1, 50 do
         pcall(function()
-            -- Use ScalingTool.RF to duplicate
-            local args = {
-                [1] = "Duplicate",
-                [2] = targetBlock
-            }
+            local offset = CFrame.new(
+                (i % 10) * 3,
+                math.floor(i / 10) * 3,
+                0
+            )
             
-            local result = scaleRF:InvokeServer(unpack(args))
-            duplicates = duplicates + 1
+            local newCFrame = basePosition * offset
+            
+            -- placeRF:InvokeServer(blockName, blockID, relative, cframe)
+            placeRF:InvokeServer(
+                targetBlockName,
+                getBlockID(targetBlockName),
+                playerBlocks,
+                newCFrame
+            )
+            
+            created = created + 1
             
             if i % 10 == 0 then
-                log("Duplicated " .. duplicates .. " blocks")
-                wait(0.1)
+                log("Created " .. created .. " blocks")
+                wait(0.2)
             end
         end)
         
-        wait(0.05)
+        wait(0.1)
     end
     
-    log("Duplication complete! Created " .. duplicates .. " duplicates")
+    log("Block creation complete! Created " .. created .. " blocks")
 end
 
 local function toggleInfBlocks(enabled)
     settings.infBlocks = enabled
     if enabled then
-        log("Infinite Blocks enabled - running duplication")
-        spawn(duplicateBlocksWithScaling)
+        log("Infinite Blocks enabled - running creation")
+        spawn(createBlocksWithPlaceRF)
     else
         log("Infinite Blocks disabled")
     end
@@ -562,7 +571,7 @@ createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 local infoLabel = Instance.new("TextLabel")
 infoLabel.Size = UDim2.new(1, 0, 0, 120)
 infoLabel.BackgroundColor3 = colors.button
-infoLabel.Text = "[INFO] Infinite Blocks Method\n\nBased on ScalingTool.RF duplication method.\n\nIMPORTANT: You need to place at least 1 block first!\nThe script will duplicate it 100 times.\n\nCheck Debug tab for detailed logs."
+infoLabel.Text = "[INFO] Infinite Blocks Method\n\nBased on placeRF block creation method.\n\nIMPORTANT: You need to place at least 1 block first!\nThe script will create 50 copies around you.\n\nCheck Debug tab for detailed logs."
 infoLabel.TextColor3 = colors.textDim
 infoLabel.TextSize = 12
 infoLabel.Font = Enum.Font.Gotham
@@ -575,8 +584,8 @@ local infoCorner = Instance.new("UICorner")
 infoCorner.CornerRadius = UDim.new(0, 8)
 infoCorner.Parent = infoLabel
 
-createToggle(blocksTab.content, "Infinite Blocks (ScalingTool.RF)", toggleInfBlocks)
-createButton(blocksTab.content, "Duplicate Blocks Once", duplicateBlocksWithScaling)
+createToggle(blocksTab.content, "Infinite Blocks (placeRF)", toggleInfBlocks)
+createButton(blocksTab.content, "Create Blocks Once", createBlocksWithPlaceRF)
 
 -- Debug tab
 local debugTextBox = Instance.new("TextBox")
@@ -633,7 +642,7 @@ end)
 -- Initialize
 switchTab(playerTab)
 
-log("ZeroHub v1.5 loaded!")
-log("Fixed GUI with compact tabs")
-log("Infinite Blocks based on ScalingTool.RF method")
+log("ZeroHub v1.6 loaded!")
+log("Fixed: Using placeRF for block creation")
+log("Infinite Blocks creates 50 copies of your block")
 log("Place at least 1 block before using Inf Blocks")
