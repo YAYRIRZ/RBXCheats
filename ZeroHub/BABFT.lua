@@ -1,6 +1,6 @@
 --[[
-    ZeroHub v2.5 - BABFT Advanced AutoFarm
-    Based on working autofarm methods from GitHub
+    ZeroHub v2.6 - BABFT Advanced AutoFarm
+    Fixed: Correct path workspace.BoatStages.NormalStages
 ]]
 
 -- Services
@@ -36,6 +36,7 @@ local settings = {
     lowGravity = true,
     autoCollect = true,
     autoRespawn = true,
+    teleportDelay = 2,
 }
 
 -- Colors
@@ -97,7 +98,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -100, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub v2.5 - BABFT Advanced AutoFarm"
+Title.Text = "ZeroHub v2.6 - BABFT Advanced AutoFarm"
 Title.TextColor3 = colors.text
 Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
@@ -424,10 +425,6 @@ end)
 -- AUTOFARM FUNCTIONS
 local originalGravity = workspace.Gravity
 local LOW_GRAVITY = 5
-local GOLD_COLLECT_RADIUS = 50
-local GOLD_PER_CYCLE = 105
-local STAGE_DURATION = 2
-local MAX_STAGES = 10
 
 local function isAlive(char)
     return char and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0
@@ -440,59 +437,35 @@ local function applyGodMode(char)
     end
 end
 
-local function isGoldPart(part)
-    if not part:IsA("BasePart") then return false end
-    local name = part.Name:lower()
-    return name:find("gold") or name:find("coin") or name:find("treasure")
-end
-
-local function collectGoldNearby(char)
-    if not settings.autoCollect then return end
-    
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    -- Collect gold parts
-    for _, part in ipairs(workspace:GetDescendants()) do
-        if isGoldPart(part) and (part.Position - hrp.Position).Magnitude <= GOLD_COLLECT_RADIUS then
-            pcall(function()
-                firetouchinterest(hrp, part, 0)
-                firetouchinterest(hrp, part, 1)
-            end)
-        end
+local function createTempPlatform()
+    if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+        return nil
     end
     
-    -- Click detectors (statues, chests)
-    local statueNames = {"gold", "statue", "treasure", "chest"}
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("ClickDetector") then
-            local parent = obj.Parent
-            if parent and parent:IsA("BasePart") then
-                local n = parent.Name:lower()
-                for _, kw in ipairs(statueNames) do
-                    if n:find(kw) and (parent.Position - hrp.Position).Magnitude <= GOLD_COLLECT_RADIUS then
-                        pcall(function()
-                            fireclickdetector(obj, 50)
-                        end)
-                        break
-                    end
-                end
-            end
-        end
-    end
+    local part = Instance.new("Part")
+    part.Name = "ZeroHub_Platform"
+    part.Anchored = true
+    part.CanCollide = true
+    part.Size = Vector3.new(10, 1, 10)
+    part.Position = player.Character.HumanoidRootPart.Position - Vector3.new(0, 6, 0)
+    part.Transparency = 0.5
+    part.BrickColor = BrickColor.new("Cyan")
+    part.Parent = player.Character
+    
+    return part
 end
 
 local function farmLoop()
     log("Starting autofarm loop...")
+    log("Teleport delay: " .. settings.teleportDelay .. " seconds")
     log("Low gravity: " .. tostring(settings.lowGravity))
-    log("Auto collect: " .. tostring(settings.autoCollect))
     
-    local totalGold = 0
-    local totalCycles = 0
+    local totalRuns = 0
     local startTime = tick()
     
     while settings.autoFarm do
-        local cycleStartTime = tick()
+        totalRuns = totalRuns + 1
+        log("Starting run #" .. totalRuns)
         
         -- Wait for character to spawn
         repeat
@@ -509,89 +482,137 @@ local function farmLoop()
             workspace.Gravity = LOW_GRAVITY
         end
         
-        -- Find stages
-        local stages = workspace:FindFirstChild("Stages")
-        if not stages then
-            log("ERROR: Stages folder not found")
-            task.wait(1)
+        -- Find BoatStages
+        local boatStages = workspace:FindFirstChild("BoatStages")
+        if not boatStages then
+            log("ERROR: BoatStages folder not found in workspace")
+            task.wait(2)
             continue
         end
         
-        -- Farm each stage
-        for i = 1, MAX_STAGES do
+        local normalStages = boatStages:FindFirstChild("NormalStages")
+        if not normalStages then
+            log("ERROR: NormalStages folder not found in BoatStages")
+            task.wait(2)
+            continue
+        end
+        
+        log("Found BoatStages/NormalStages")
+        
+        -- Go through all stages
+        for i = 1, 10 do
             if not settings.autoFarm then break end
             
             local stageName = "CaveStage" .. i
-            local stage = stages:FindFirstChild(stageName)
+            local stage = normalStages:FindFirstChild(stageName)
             
             if not stage then
-                log("Stage " .. i .. " not found, stopping")
-                break
+                log("WARNING: " .. stageName .. " not found, skipping")
+                continue
             end
             
             local darknessPart = stage:FindFirstChild("DarknessPart")
             if not darknessPart then
-                log("DarknessPart not found in " .. stageName)
+                log("WARNING: DarknessPart not found in " .. stageName .. ", skipping")
                 continue
+            end
+            
+            -- Check if character is still alive
+            if not isAlive(char) then
+                log("Character died, waiting for respawn...")
+                repeat
+                    task.wait(0.1)
+                until not settings.autoFarm or isAlive(player.Character)
+                
+                if not settings.autoFarm then break end
+                char = player.Character
+                applyGodMode(char)
             end
             
             -- Teleport to stage
             log("Teleporting to " .. stageName)
             char.HumanoidRootPart.CFrame = darknessPart.CFrame
-            task.wait(0.1 / settings.autoFarmSpeed)
             
-            -- Collect gold
-            if isAlive(char) then
-                collectGoldNearby(char)
-            end
+            -- Create temp platform under player
+            local platform = createTempPlatform()
             
-            -- Wait for stage duration
-            local stageStartTime = tick()
-            while (tick() - stageStartTime) < (STAGE_DURATION / settings.autoFarmSpeed) and settings.autoFarm do
-                if not isAlive(player.Character) then break end
-                task.wait(0.05)
+            -- Wait for teleport delay
+            task.wait(settings.teleportDelay)
+            
+            -- Remove platform
+            if platform then
+                platform:Destroy()
             end
         end
         
-        -- Claim river results gold
-        if settings.autoFarm and isAlive(player.Character) then
-            log("Claiming river results gold...")
-            pcall(function()
-                local goldEvent = workspace:FindFirstChild("ClaimRiverResultsGold")
-                if goldEvent then
-                    goldEvent:FireServer()
+        if not settings.autoFarm then break end
+        
+        -- Go to the end (GoldenChest)
+        log("Teleporting to TheEnd (GoldenChest)...")
+        local theEnd = normalStages:FindFirstChild("TheEnd")
+        if theEnd then
+            local goldenChest = theEnd:FindFirstChild("GoldenChest")
+            if goldenChest then
+                local trigger = goldenChest:FindFirstChild("Trigger")
+                if trigger then
+                    if isAlive(char) then
+                        char.HumanoidRootPart.CFrame = trigger.CFrame
+                        
+                        -- Wait until day time changes (indicates chest claimed)
+                        local Lighting = game:GetService("Lighting")
+                        local startClockTime = Lighting.ClockTime
+                        local waitStart = tick()
+                        
+                        repeat
+                            task.wait(0.1)
+                            if not settings.autoFarm or not isAlive(player.Character) then break end
+                        until Lighting.ClockTime ~= startClockTime or (tick() - waitStart) > 10
+                        
+                        log("GoldenChest trigger activated")
+                    end
+                else
+                    log("WARNING: Trigger not found in GoldenChest")
                 end
-            end)
+            else
+                log("WARNING: GoldenChest not found in TheEnd")
+            end
+        else
+            log("WARNING: TheEnd not found in NormalStages")
         end
         
-        -- Update stats
-        totalCycles = totalCycles + 1
-        totalGold = totalGold + GOLD_PER_CYCLE
+        if not settings.autoFarm then break end
         
-        local elapsedTime = tick() - startTime
-        local goldPerHour = (totalGold / elapsedTime) * 3600
-        
-        log("Cycle " .. totalCycles .. " complete - Gold/h: " .. math.floor(goldPerHour))
-        
-        -- Respawn for next cycle
-        if settings.autoFarm and settings.autoRespawn then
-            log("Respawning for next cycle...")
-            if char and char:FindFirstChild("Humanoid") then
-                char.Humanoid.Health = 0
-            end
+        -- Wait for respawn
+        if settings.autoRespawn then
+            log("Waiting for respawn...")
+            local respawned = false
+            local connection
+            connection = player.CharacterAdded:Connect(function()
+                respawned = true
+                connection:Disconnect()
+            end)
             
-            -- Wait for respawn
             repeat
                 task.wait(0.1)
-            until not settings.autoFarm or isAlive(player.Character)
+            until not settings.autoFarm or respawned
+            
+            if connection.Connected then
+                connection:Disconnect()
+            end
         end
         
-        task.wait(1 / settings.autoFarmSpeed)
+        -- Wait between runs
+        task.wait(2)
+        
+        local elapsedTime = tick() - startTime
+        local runsPerHour = (totalRuns / elapsedTime) * 3600
+        
+        log("Run #" .. totalRuns .. " complete - Runs/hour: " .. string.format("%.1f", runsPerHour))
     end
     
     -- Restore gravity
     workspace.Gravity = originalGravity
-    log("Autofarm stopped - Total cycles: " .. totalCycles .. ", Total gold: " .. totalGold)
+    log("Autofarm stopped - Total runs: " .. totalRuns)
 end
 
 local function toggleAutoFarm(enabled)
@@ -603,25 +624,6 @@ local function toggleAutoFarm(enabled)
         log("AutoFarm disabled - stopping")
         workspace.Gravity = originalGravity
     end
-end
-
-local function toggleLowGravity(enabled)
-    settings.lowGravity = enabled
-    if enabled and settings.autoFarm then
-        workspace.Gravity = LOW_GRAVITY
-    elseif not settings.autoFarm then
-        workspace.Gravity = originalGravity
-    end
-end
-
-local function toggleAutoCollect(enabled)
-    settings.autoCollect = enabled
-    log("Auto collect: " .. tostring(enabled))
-end
-
-local function toggleAutoRespawn(enabled)
-    settings.autoRespawn = enabled
-    log("Auto respawn: " .. tostring(enabled))
 end
 
 -- Populate tabs
@@ -637,7 +639,7 @@ createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 local infoLabel = Instance.new("TextLabel")
 infoLabel.Size = UDim2.new(1, 0, 0, 180)
 infoLabel.BackgroundColor3 = colors.button
-infoLabel.Text = "[INFO] Advanced AutoFarm\n\nBased on working GitHub autofarm scripts!\n\nFEATURES:\n- Teleports through all CaveStages\n- Collects gold parts and clicks detectors\n- Claims river results gold\n- Auto respawn for continuous farming\n- Low gravity to avoid damage\n\nSTATS:\n- ~105 gold per cycle\n- ~35 seconds per cycle (speed 1x)\n- Up to 10,000+ gold/hour!"
+infoLabel.Text = "[INFO] Advanced AutoFarm v2.6\n\nFIXED: Correct path workspace.BoatStages.NormalStages\n\nHOW IT WORKS:\n1. Teleports to CaveStage1-10 DarknessPart\n2. Creates temp platform under you\n3. Teleports to TheEnd/GoldenChest/Trigger\n4. Waits for chest to be claimed\n5. Respawns and repeats\n\nFEATURES:\n- Low gravity (avoid fall damage)\n- Auto respawn\n- Temp platforms (don't fall)\n- God mode (optional)"
 infoLabel.TextColor3 = colors.textDim
 infoLabel.TextSize = 12
 infoLabel.Font = Enum.Font.Gotham
@@ -650,14 +652,25 @@ local infoCorner = Instance.new("UICorner")
 infoCorner.CornerRadius = UDim.new(0, 8)
 infoCorner.Parent = infoLabel
 
-createSlider(farmTab.content, "Farm Speed", 1, 10, 1, function(v)
-    settings.autoFarmSpeed = v
-    log("Farm speed set to: " .. v .. "x")
+createSlider(farmTab.content, "Teleport Delay (seconds)", 1, 10, 2, function(v)
+    settings.teleportDelay = v
+    log("Teleport delay set to: " .. v .. " seconds")
 end)
 
-createToggle(farmTab.content, "Low Gravity (Avoid Damage)", toggleLowGravity)
-createToggle(farmTab.content, "Auto Collect Gold", toggleAutoCollect)
-createToggle(farmTab.content, "Auto Respawn", toggleAutoRespawn)
+createToggle(farmTab.content, "Low Gravity (Avoid Damage)", function(enabled)
+    settings.lowGravity = enabled
+    if enabled and settings.autoFarm then
+        workspace.Gravity = LOW_GRAVITY
+    elseif not settings.autoFarm then
+        workspace.Gravity = originalGravity
+    end
+    log("Low gravity: " .. tostring(enabled))
+end)
+
+createToggle(farmTab.content, "Auto Respawn", function(enabled)
+    settings.autoRespawn = enabled
+    log("Auto respawn: " .. tostring(enabled))
+end)
 
 local startButton = createToggle(farmTab.content, "START AUTOFARM", toggleAutoFarm)
 
@@ -718,7 +731,7 @@ end)
 -- Initialize
 switchTab(playerTab)
 
-log("ZeroHub v2.5 loaded!")
-log("Advanced AutoFarm based on working GitHub scripts")
-log("Features: CaveStage teleport, gold collection, auto respawn")
-log("Expected: ~105 gold/cycle, ~10,000+ gold/hour")
+log("ZeroHub v2.6 loaded!")
+log("FIXED: Correct path workspace.BoatStages.NormalStages")
+log("Features: CaveStage teleport, temp platforms, auto respawn")
+log("Based on working GitHub autofarm scripts")
