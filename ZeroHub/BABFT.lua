@@ -1,6 +1,6 @@
 --[[
-    ZeroHub v1.8 - BABFT Infinite Blocks
-    Method: Create 1 block + Scale it to huge size
+    ZeroHub v2.1 - BABFT Infinite Blocks
+    Method: Infinite chest buying via ItemBoughtFromShop
 ]]
 
 -- Services
@@ -31,6 +31,9 @@ local settings = {
     godMode = false,
     infiniteJump = false,
     infBlocks = false,
+    chestType = "Winter Chest",
+    chestAmount = 6,
+    buySpeed = 0,
 }
 
 -- Colors
@@ -52,8 +55,8 @@ ScreenGui.Name = "ZeroHub"
 ScreenGui.Parent = game.CoreGui
 
 local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 600, 0, 550)
-MainFrame.Position = UDim2.new(0.5, -300, 0.5, -275)
+MainFrame.Size = UDim2.new(0, 600, 0, 600)
+MainFrame.Position = UDim2.new(0.5, -300, 0.5, -300)
 MainFrame.BackgroundColor3 = colors.bg
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -92,7 +95,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -100, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub v1.8 - BABFT Inf Blocks"
+Title.Text = "ZeroHub v2.1 - BABFT Inf Blocks"
 Title.TextColor3 = colors.text
 Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
@@ -355,6 +358,49 @@ local function createSlider(parent, text, min, max, default, callback)
     return frame
 end
 
+local function createTextBox(parent, text, default, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 45)
+    frame.BackgroundColor3 = colors.button
+    frame.Parent = parent
+    
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 8)
+    corner.Parent = frame
+    
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(0.4, 0, 1, 0)
+    label.Position = UDim2.new(0, 15, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = colors.text
+    label.TextSize = 14
+    label.Font = Enum.Font.Gotham
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+    
+    local textBox = Instance.new("TextBox")
+    textBox.Size = UDim2.new(0.5, -20, 0.6, 0)
+    textBox.Position = UDim2.new(0.45, 0, 0.2, 0)
+    textBox.BackgroundColor3 = colors.bg
+    textBox.Text = default
+    textBox.TextColor3 = colors.text
+    textBox.TextSize = 14
+    textBox.Font = Enum.Font.Gotham
+    textBox.ClearTextOnFocus = false
+    textBox.Parent = frame
+    
+    local tbCorner = Instance.new("UICorner")
+    tbCorner.CornerRadius = UDim.new(0, 6)
+    tbCorner.Parent = textBox
+    
+    textBox.FocusLost:Connect(function()
+        callback(textBox.Text)
+    end)
+    
+    return textBox
+end
+
 -- PLAYER FUNCTIONS
 local function toggleFly(enabled)
     settings.fly = enabled
@@ -416,191 +462,103 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- INFINITE BLOCKS - Create 1 block + Scale to huge size
-local function getBlockID(blockName)
-    local blockData = player:FindFirstChild("Data")
-    if not blockData then return 0 end
+-- INFINITE BLOCKS - Infinite chest buying
+local function removeAnnoyingEffects()
+    log("Removing annoying buying effects...")
     
-    local block = blockData:FindFirstChild(blockName)
-    if not block then return 0 end
+    local clientGuis = player:FindFirstChild("PlayerGui")
+    if not clientGuis then
+        log("ERROR: PlayerGui not found")
+        return
+    end
     
-    return block.Value or 0
+    -- Remove ItemGained LocalScript
+    local itemGainedScript = clientGuis:FindFirstChild("ItemGained", true)
+    if itemGainedScript then
+        pcall(function()
+            itemGainedScript:Destroy()
+            log("Removed ItemGained script")
+        end)
+    end
+    
+    -- Remove future annoying effects
+    clientGuis.DescendantAdded:Connect(function(c)
+        if c.Name == 'NoChestAnimation' or (c:IsA('LocalScript') and c.Parent and c.Parent.Name == 'DisplayGainedItem') then
+            task.defer(function()
+                pcall(function()
+                    c:Destroy()
+                end)
+            end)
+        end
+    end)
+    
+    log("Annoying effects removed")
 end
 
-local function createInfiniteBlock()
-    log("Starting Infinite Block creation")
-    log("Method: Create 1 block + Scale to huge size")
-    
-    -- Find BuildingTool and ScalingTool
-    local placeTool = character:FindFirstChild("BuildingTool") or player:FindFirstChild("Backpack"):FindFirstChild("BuildingTool")
-    local scaleTool = character:FindFirstChild("ScalingTool") or player:FindFirstChild("Backpack"):FindFirstChild("ScalingTool")
-    
-    if not placeTool then
-        log("ERROR: BuildingTool not found")
+local buyLoopRunning = false
+
+local function startInfiniteChestBuying()
+    if buyLoopRunning then
+        log("ERROR: Buy loop already running")
         return
     end
     
-    if not scaleTool then
-        log("ERROR: ScalingTool not found")
+    buyLoopRunning = true
+    log("Starting infinite chest buying loop")
+    log("Chest type: " .. settings.chestType)
+    log("Chest amount: " .. settings.chestAmount)
+    log("Buy speed: " .. settings.buySpeed .. " seconds")
+    
+    -- Remove annoying effects first
+    removeAnnoyingEffects()
+    
+    -- Find ItemBoughtFromShop
+    local buy = workspace:FindFirstChild("ItemBoughtFromShop")
+    
+    if not buy then
+        log("ERROR: ItemBoughtFromShop not found in workspace")
+        buyLoopRunning = false
         return
     end
     
-    local placeRF = placeTool:FindFirstChild("RF")
-    local scaleRF = scaleTool:FindFirstChild("RF")
+    log("Found ItemBoughtFromShop")
     
-    if not placeRF then
-        log("ERROR: BuildingTool.RF not found")
-        return
-    end
+    local invoke_server = buy.InvokeServer
     
-    if not scaleRF then
-        log("ERROR: ScalingTool.RF not found")
-        return
-    end
+    local bought = 0
     
-    log("Found BuildingTool.RF and ScalingTool.RF")
-    
-    -- Find zone
-    local zone = workspace:FindFirstChild("WhiteZone") or workspace:FindFirstChild("BlackZone")
-    
-    if not zone then
-        log("ERROR: No zone found")
-        return
-    end
-    
-    log("Found zone: " .. zone.Name)
-    
-    -- Get player's blocks folder
-    local blocksFolder = workspace:FindFirstChild("Blocks")
-    if not blocksFolder then
-        log("ERROR: Blocks folder not found")
-        return
-    end
-    
-    local playerBlocks = blocksFolder:FindFirstChild(player.Name)
-    if not playerBlocks then
-        log("ERROR: Player blocks folder not found")
-        return
-    end
-    
-    -- Find a block to use
-    local targetBlockName = "NeonBlock"
-    local targetBlockID = getBlockID(targetBlockName)
-    
-    if targetBlockID == 0 then
-        -- Try to find any block
-        for _, block in pairs(playerBlocks:GetChildren()) do
-            if block:IsA("Model") then
-                targetBlockName = block.Name
-                targetBlockID = getBlockID(block.Name)
-                break
+    while settings.infBlocks and buyLoopRunning do
+        local success = pcall(function()
+            invoke_server(buy, settings.chestType, settings.chestAmount)
+        end)
+        
+        if success then
+            bought = bought + 1
+            if bought % 100 == 0 then
+                log("Bought " .. bought .. " chests")
             end
         end
+        
+        task.wait(settings.buySpeed)
     end
     
-    if targetBlockID == 0 then
-        log("ERROR: No blocks available")
-        log("Please buy at least 1 block first")
-        return
-    end
-    
-    log("Using block: " .. targetBlockName .. " (ID: " .. targetBlockID .. ")")
-    
-    -- Step 1: Create 1 block
-    log("Step 1: Creating 1 block...")
-    
-    local blockCFrame = rootPart.CFrame * CFrame.new(0, 0, -10)
-    local secondaryCFrame = blockCFrame * CFrame.new(0, 0, 5)
-    
-    local success = pcall(function()
-        placeRF:InvokeServer(
-            targetBlockName,
-            targetBlockID,
-            zone,
-            blockCFrame,
-            true,
-            secondaryCFrame,
-            false
-        )
-    end)
-    
-    if not success then
-        log("ERROR: Failed to create block")
-        return
-    end
-    
-    log("Block created successfully!")
-    wait(1)
-    
-    -- Find the created block
-    local createdBlock = nil
-    for _, block in pairs(playerBlocks:GetChildren()) do
-        if block.Name == targetBlockName and block:IsA("Model") then
-            createdBlock = block
-            break
-        end
-    end
-    
-    if not createdBlock then
-        log("ERROR: Created block not found")
-        return
-    end
-    
-    log("Found created block: " .. createdBlock.Name)
-    
-    -- Step 2: Scale block to huge size
-    log("Step 2: Scaling block to huge size...")
-    
-    local hugeSize = Vector3.new(100, 100, 100)
-    local newCFrame = createdBlock:FindFirstChild("PPart") and createdBlock.PPart.CFrame or blockCFrame
-    
-    success = pcall(function()
-        scaleRF:InvokeServer(
-            createdBlock,
-            hugeSize,
-            newCFrame
-        )
-    end)
-    
-    if not success then
-        log("ERROR: Failed to scale block")
-        return
-    end
-    
-    log("Block scaled to: " .. tostring(hugeSize))
-    log("This equals approximately " .. (100 * 100 * 100) .. " small blocks!")
-    
-    -- Step 3: Scale again for even more blocks
-    log("Step 3: Scaling again for more blocks...")
-    
-    local evenBiggerSize = Vector3.new(200, 100, 200)
-    
-    wait(0.5)
-    
-    success = pcall(function()
-        scaleRF:InvokeServer(
-            createdBlock,
-            evenBiggerSize,
-            newCFrame
-        )
-    end)
-    
-    if success then
-        log("Block scaled to: " .. tostring(evenBiggerSize))
-        log("This equals approximately " .. (200 * 100 * 200) .. " small blocks!")
-    end
-    
-    log("Infinite Block creation complete!")
-    log("You now have a massive block that counts as millions of blocks!")
+    buyLoopRunning = false
+    log("Buy loop stopped. Total chests bought: " .. bought)
+end
+
+local function stopInfiniteChestBuying()
+    log("Stopping infinite chest buying...")
+    settings.infBlocks = false
 end
 
 local function toggleInfBlocks(enabled)
     settings.infBlocks = enabled
     if enabled then
-        log("Infinite Blocks enabled - creating huge block")
-        spawn(createInfiniteBlock)
+        log("Infinite Blocks enabled - starting buy loop")
+        spawn(startInfiniteChestBuying)
     else
-        log("Infinite Blocks disabled")
+        log("Infinite Blocks disabled - stopping buy loop")
+        stopInfiniteChestBuying()
     end
 end
 
@@ -615,11 +573,11 @@ createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 
 -- Inf Blocks tab
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 140)
+infoLabel.Size = UDim2.new(1, 0, 0, 160)
 infoLabel.BackgroundColor3 = colors.button
-infoLabel.Text = "[INFO] Infinite Blocks Method\n\nCreates 1 block and scales it to HUGE size!\nOne 200x100x200 block = 4,000,000 small blocks!\n\nIMPORTANT: You need to have at least 1 block in inventory!\nThe script will create and scale it automatically.\n\nCheck Debug tab for detailed logs."
+infoLabel.Text = "[INFO] Infinite Blocks Method\n\nInfinite chest buying via ItemBoughtFromShop!\nBuys chests infinitely to get blocks!\n\nSettings:\n- Chest Type: Which chest to buy (e.g. 'Winter Chest')\n- Chest Amount: Amount parameter (usually 6)\n- Buy Speed: Delay between buys (0 = fastest)\n\nCheck Debug tab for detailed logs."
 infoLabel.TextColor3 = colors.textDim
-infoLabel.TextSize = 12
+infoLabel.TextSize = 11
 infoLabel.Font = Enum.Font.Gotham
 infoLabel.TextWrapped = true
 infoLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -630,8 +588,38 @@ local infoCorner = Instance.new("UICorner")
 infoCorner.CornerRadius = UDim.new(0, 8)
 infoCorner.Parent = infoLabel
 
-createToggle(blocksTab.content, "Infinite Blocks (Create + Scale)", toggleInfBlocks)
-createButton(blocksTab.content, "Create Infinite Block", createInfiniteBlock)
+createTextBox(blocksTab.content, "Chest Type:", settings.chestType, function(value)
+    settings.chestType = value
+    log("Chest type set to: " .. value)
+end)
+
+createTextBox(blocksTab.content, "Chest Amount:", tostring(settings.chestAmount), function(value)
+    local num = tonumber(value)
+    if num then
+        settings.chestAmount = num
+        log("Chest amount set to: " .. num)
+    else
+        log("ERROR: Invalid number")
+    end
+end)
+
+createSlider(blocksTab.content, "Buy Speed (seconds)", 0, 5, 0, function(v)
+    settings.buySpeed = v
+end)
+
+createToggle(blocksTab.content, "Start Infinite Chest Buying", toggleInfBlocks)
+createButton(blocksTab.content, "Buy Once", function()
+    log("Buying once...")
+    local buy = workspace:FindFirstChild("ItemBoughtFromShop")
+    if buy then
+        pcall(function()
+            buy:InvokeServer(settings.chestType, settings.chestAmount)
+            log("Bought 1 chest")
+        end)
+    else
+        log("ERROR: ItemBoughtFromShop not found")
+    end
+end)
 
 -- Debug tab
 local debugTextBox = Instance.new("TextBox")
@@ -683,12 +671,13 @@ CloseButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
     RunService:UnbindFromRenderStep("ZeroHub_Fly")
     RunService:UnbindFromRenderStep("ZeroHub_Noclip")
+    settings.infBlocks = false
 end)
 
 -- Initialize
 switchTab(playerTab)
 
-log("ZeroHub v1.8 loaded!")
-log("Method: Create 1 block + Scale to huge size")
-log("Creates massive block = millions of small blocks")
-log("You need at least 1 block in inventory")
+log("ZeroHub v2.1 loaded!")
+log("Method: Infinite chest buying via ItemBoughtFromShop")
+log("Set chest type and amount in Inf Blocks tab")
+log("Enable to start infinite buying")
