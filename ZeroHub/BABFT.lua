@@ -1,13 +1,12 @@
 --[[
-    ZeroHub v2.2 - BABFT Infinite Blocks
-    Method: Autobuild bypass - load builds without block limit check
+    ZeroHub v2.3 - BABFT Infinite Blocks
+    Method: Spawn real blocks in build zone via placeRF
 ]]
 
 -- Services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
 
 -- Local Player
 local player = Players.LocalPlayer
@@ -32,9 +31,8 @@ local settings = {
     godMode = false,
     infiniteJump = false,
     blockType = "NeonBlock",
-    blockCount = 1000,
-    autoSave = false,
-    autoLoad = false,
+    blockCount = 100,
+    spawnInBuildZone = true,
 }
 
 -- Colors
@@ -96,7 +94,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -100, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub v2.2 - BABFT Autobuild Bypass"
+Title.Text = "ZeroHub v2.3 - BABFT Build Zone Spawner"
 Title.TextColor3 = colors.text
 Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
@@ -463,164 +461,156 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- AUTOBUILD BYPASS - Create and load fake builds
-local function createFakeBuildData()
-    log("Creating fake build data...")
+-- BUILD ZONE SPAWNER - Create real blocks in build zone
+local function getBlockID(blockName)
+    local blockData = player:FindFirstChild("Data")
+    if not blockData then return 0 end
+    
+    local block = blockData:FindFirstChild(blockName)
+    if not block then return 0 end
+    
+    return block.Value or 0
+end
+
+local function getBuildZone()
+    -- Find player's build zone
+    local zones = workspace:FindFirstChild("Zones")
+    if not zones then
+        log("ERROR: Zones folder not found")
+        return nil
+    end
+    
+    -- Find player's zone (usually named after player or "PlayerZone")
+    local playerZone = zones:FindFirstChild(player.Name) or zones:FindFirstChild("PlayerZone")
+    if not playerZone then
+        -- Try to find any zone
+        for _, zone in pairs(zones:GetChildren()) do
+            if zone:IsA("Model") or zone:IsA("Folder") then
+                playerZone = zone
+                break
+            end
+        end
+    end
+    
+    if not playerZone then
+        log("ERROR: Build zone not found")
+        return nil
+    end
+    
+    log("Found build zone: " .. playerZone.Name)
+    return playerZone
+end
+
+local function spawnBlocksInBuildZone()
+    log("Spawning real blocks in build zone...")
     log("Block type: " .. settings.blockType)
     log("Block count: " .. settings.blockCount)
     
-    local buildData = {
-        blocks = {},
-        metadata = {
-            name = "ZeroHub_Infinite_" .. settings.blockType,
-            created = os.time(),
-            version = "2.2"
-        }
-    }
-    
-    -- Create fake blocks
-    local basePosition = Vector3.new(0, 10, 0)
-    local spacing = 3
-    
-    for i = 1, settings.blockCount do
-        local row = math.floor((i - 1) / 10)
-        local col = (i - 1) % 10
-        
-        local position = basePosition + Vector3.new(
-            col * spacing,
-            0,
-            row * spacing
-        )
-        
-        table.insert(buildData.blocks, {
-            name = settings.blockType,
-            position = position,
-            rotation = CFrame.new(),
-            size = Vector3.new(2, 2, 2),
-            color = Color3.fromRGB(255, 255, 255)
-        })
-    end
-    
-    log("Created fake build with " .. #buildData.blocks .. " blocks")
-    return buildData
-end
-
-local function saveBuildToWorkspace(buildData)
-    log("Saving build to workspace...")
-    
-    -- Create folder in workspace
-    local buildFolder = Instance.new("Folder")
-    buildFolder.Name = buildData.metadata.name
-    buildFolder.Parent = workspace
-    
-    -- Create blocks
-    for i, blockData in ipairs(buildData.blocks) do
-        local block = Instance.new("Part")
-        block.Name = blockData.name .. "_" .. i
-        block.Size = blockData.size
-        block.CFrame = CFrame.new(blockData.position)
-        block.Color = blockData.color
-        block.Anchored = true
-        block.CanCollide = false
-        block.Transparency = 0.5
-        block.Parent = buildFolder
-        
-        if i % 100 == 0 then
-            log("Created " .. i .. " fake blocks in workspace")
-            wait(0.1)
-        end
-    end
-    
-    log("Saved " .. #buildData.blocks .. " fake blocks to workspace/" .. buildData.metadata.name)
-    return buildFolder
-end
-
-local function loadBuildFromWorkspace(folderName)
-    log("Loading build from workspace: " .. folderName)
-    
-    local buildFolder = workspace:FindFirstChild(folderName)
-    if not buildFolder then
-        log("ERROR: Build folder not found: " .. folderName)
+    -- Get build zone
+    local buildZone = getBuildZone()
+    if not buildZone then
+        log("ERROR: Cannot find build zone")
         return
     end
     
-    log("Found build folder with " .. #buildFolder:GetChildren() .. " blocks")
+    -- Find BuildingTool
+    local placeTool = character:FindFirstChild("BuildingTool") or player:FindFirstChild("Backpack"):FindFirstChild("BuildingTool")
     
-    -- The exploit: Game doesn't check block count when loading!
-    -- We just need to make the blocks "real" by changing their properties
-    local loaded = 0
-    
-    for _, block in pairs(buildFolder:GetChildren()) do
-        if block:IsA("BasePart") then
-            pcall(function()
-                -- Make block solid and visible
-                block.Anchored = false
-                block.CanCollide = true
-                block.Transparency = 0
-                
-                -- Try to parent it to player's build area
-                local blocksFolder = workspace:FindFirstChild("Blocks")
-                if blocksFolder then
-                    local playerBlocks = blocksFolder:FindFirstChild(player.Name)
-                    if playerBlocks then
-                        block.Parent = playerBlocks
-                        loaded = loaded + 1
-                    end
-                end
-                
-                if loaded % 100 == 0 then
-                    log("Loaded " .. loaded .. " blocks")
-                    wait(0.1)
-                end
-            end)
-        end
+    if not placeTool then
+        log("ERROR: BuildingTool not found")
+        log("Please equip BuildingTool first")
+        return
     end
     
-    log("Build loading complete! Loaded " .. loaded .. " blocks")
-    log("SUCCESS! You now have " .. loaded .. " " .. settings.blockType .. " blocks!")
-end
-
-local function autoBuildBypass()
-    log("Starting autobuild bypass...")
+    local placeRF = placeTool:FindFirstChild("RF")
     
-    -- Step 1: Create fake build
-    local buildData = createFakeBuildData()
-    
-    -- Step 2: Save to workspace
-    local buildFolder = saveBuildToWorkspace(buildData)
-    
-    -- Step 3: Wait a bit
-    wait(1)
-    
-    -- Step 4: Load the build (exploit happens here!)
-    loadBuildFromWorkspace(buildFolder.Name)
-    
-    log("Autobuild bypass complete!")
-end
-
-local function toggleAutoSave(enabled)
-    settings.autoSave = enabled
-    if enabled then
-        log("Auto-save enabled - creating fake build")
-        spawn(function()
-            local buildData = createFakeBuildData()
-            saveBuildToWorkspace(buildData)
-        end)
-    else
-        log("Auto-save disabled")
+    if not placeRF then
+        log("ERROR: BuildingTool.RF not found")
+        return
     end
+    
+    log("Found BuildingTool.RF")
+    
+    -- Get block ID
+    local blockID = getBlockID(settings.blockType)
+    
+    if blockID == 0 then
+        log("ERROR: Block not found in inventory: " .. settings.blockType)
+        log("Please buy at least 1 " .. settings.blockType .. " first")
+        return
+    end
+    
+    log("Block ID: " .. blockID)
+    
+    -- Find zone for placeRF (WhiteZone or BlackZone)
+    local zone = workspace:FindFirstChild("WhiteZone") or workspace:FindFirstChild("BlackZone")
+    
+    if not zone then
+        log("ERROR: No zone found (WhiteZone/BlackZone)")
+        return
+    end
+    
+    log("Found zone: " .. zone.Name)
+    
+    -- Get build zone position
+    local buildZoneCFrame = buildZone:GetPivot() or CFrame.new(0, 0, 0)
+    local basePosition = buildZoneCFrame * CFrame.new(0, 5, 0)
+    
+    log("Base position: " .. tostring(basePosition))
+    log("Starting to spawn " .. settings.blockCount .. " blocks...")
+    
+    -- Spawn blocks using placeRF
+    local spawned = 0
+    
+    for i = 1, settings.blockCount do
+        pcall(function()
+            -- Calculate position in grid
+            local row = math.floor((i - 1) / 10)
+            local col = (i - 1) % 10
+            local spacing = 3
+            
+            local offset = CFrame.new(
+                col * spacing,
+                0,
+                row * spacing
+            )
+            
+            local mainCFrame = basePosition * offset
+            local secondaryCFrame = mainCFrame * CFrame.new(0, 0, 3)
+            
+            -- Place block using placeRF
+            placeRF:InvokeServer(
+                settings.blockType,
+                blockID,
+                zone,
+                mainCFrame,
+                true,
+                secondaryCFrame,
+                false
+            )
+            
+            spawned = spawned + 1
+            
+            if i % 10 == 0 then
+                log("Spawned " .. spawned .. " blocks")
+                wait(0.3)
+            end
+        end)
+        
+        wait(0.15)
+    end
+    
+    log("Block spawning complete! Spawned " .. spawned .. " blocks in build zone")
+    log("Blocks should now be visible and saved on server!")
 end
 
-local function toggleAutoLoad(enabled)
-    settings.autoLoad = enabled
+local function toggleInfBlocks(enabled)
+    settings.spawnInBuildZone = enabled
     if enabled then
-        log("Auto-load enabled - loading build")
-        spawn(function()
-            local folderName = "ZeroHub_Infinite_" .. settings.blockType
-            loadBuildFromWorkspace(folderName)
-        end)
+        log("Build zone spawning enabled - starting")
+        spawn(spawnBlocksInBuildZone)
     else
-        log("Auto-load disabled")
+        log("Build zone spawning disabled")
     end
 end
 
@@ -635,11 +625,11 @@ createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 
 -- Inf Blocks tab
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 180)
+infoLabel.Size = UDim2.new(1, 0, 0, 160)
 infoLabel.BackgroundColor3 = colors.button
-infoLabel.Text = "[INFO] Autobuild Bypass Method\n\nHOW IT WORKS:\n1. Game checks block limit when BUYING blocks\n2. Game does NOT check limit when LOADING builds!\n3. We create fake build with many blocks\n4. Load it - game allows it!\n\nIMPORTANT: You need at least 1 block of the type you want!\n\nSteps:\n1. Set block type (e.g. NeonBlock)\n2. Set count (e.g. 1000)\n3. Click 'Create & Save Build'\n4. Click 'Load Build' to get blocks!"
+infoLabel.Text = "[INFO] Build Zone Block Spawner\n\nCreates REAL blocks in your build zone via placeRF!\nBlocks are spawned on SERVER so they're saved!\n\nREQUIREMENTS:\n1. Buy at least 1 block of the type you want\n2. Equip BuildingTool\n3. Be in your build zone\n\nThe script will spawn blocks in a grid pattern in your build zone."
 infoLabel.TextColor3 = colors.textDim
-infoLabel.TextSize = 11
+infoLabel.TextSize = 12
 infoLabel.Font = Enum.Font.Gotham
 infoLabel.TextWrapped = true
 infoLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -655,30 +645,12 @@ createTextBox(blocksTab.content, "Block Type:", settings.blockType, function(val
     log("Block type set to: " .. value)
 end)
 
-createSlider(blocksTab.content, "Block Count", 100, 10000, 1000, function(v)
+createSlider(blocksTab.content, "Block Count", 10, 500, 100, function(v)
     settings.blockCount = v
 end)
 
-createButton(blocksTab.content, "Create & Save Build", function()
-    log("Creating and saving build...")
-    spawn(function()
-        local buildData = createFakeBuildData()
-        saveBuildToWorkspace(buildData)
-    end)
-end)
-
-createButton(blocksTab.content, "Load Build (Get Blocks!)", function()
-    log("Loading build...")
-    spawn(function()
-        local folderName = "ZeroHub_Infinite_" .. settings.blockType
-        loadBuildFromWorkspace(folderName)
-    end)
-end)
-
-createButton(blocksTab.content, "Full Autobuild Bypass", autoBuildBypass)
-
-createToggle(blocksTab.content, "Auto-Save Build", toggleAutoSave)
-createToggle(blocksTab.content, "Auto-Load Build", toggleAutoLoad)
+createToggle(blocksTab.content, "Spawn Blocks in Build Zone", toggleInfBlocks)
+createButton(blocksTab.content, "Spawn Once", spawnBlocksInBuildZone)
 
 -- Debug tab
 local debugTextBox = Instance.new("TextBox")
@@ -730,14 +702,13 @@ CloseButton.MouseButton1Click:Connect(function()
     ScreenGui:Destroy()
     RunService:UnbindFromRenderStep("ZeroHub_Fly")
     RunService:UnbindFromRenderStep("ZeroHub_Noclip")
-    settings.autoSave = false
-    settings.autoLoad = false
+    settings.spawnInBuildZone = false
 end)
 
 -- Initialize
 switchTab(playerTab)
 
-log("ZeroHub v2.2 loaded!")
-log("Method: Autobuild bypass")
-log("Game checks block limit on BUY but NOT on LOAD!")
-log("Create fake build -> Load it -> Get infinite blocks!")
+log("ZeroHub v2.3 loaded!")
+log("Method: Spawn real blocks in build zone via placeRF")
+log("Blocks are created on SERVER so they're saved!")
+log("You need at least 1 block of the type you want")
