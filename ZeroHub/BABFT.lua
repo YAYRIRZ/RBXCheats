@@ -1,6 +1,6 @@
 --[[
-    ZeroHub v1.7 - BABFT Infinite Blocks
-    Fixed: Correct placeRF arguments (7 params)
+    ZeroHub v1.8 - BABFT Infinite Blocks
+    Method: Create 1 block + Scale it to huge size
 ]]
 
 -- Services
@@ -92,7 +92,7 @@ local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, -100, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "ZeroHub v1.7 - BABFT Inf Blocks"
+Title.Text = "ZeroHub v1.8 - BABFT Inf Blocks"
 Title.TextColor3 = colors.text
 Title.TextSize = 20
 Title.Font = Enum.Font.GothamBold
@@ -416,7 +416,7 @@ UserInputService.JumpRequest:Connect(function()
     end
 end)
 
--- INFINITE BLOCKS - Using correct placeRF arguments
+-- INFINITE BLOCKS - Create 1 block + Scale to huge size
 local function getBlockID(blockName)
     local blockData = player:FindFirstChild("Data")
     if not blockData then return 0 end
@@ -427,43 +427,50 @@ local function getBlockID(blockName)
     return block.Value or 0
 end
 
-local function createBlocksWithPlaceRF()
-    log("Starting block creation with correct placeRF args")
+local function createInfiniteBlock()
+    log("Starting Infinite Block creation")
+    log("Method: Create 1 block + Scale to huge size")
     
-    -- Find BuildingTool
-    local backpack = player:FindFirstChild("Backpack")
-    if not backpack then
-        log("ERROR: Backpack not found")
-        return
-    end
-    
-    local placeTool = backpack:FindFirstChild("BuildingTool") or character:FindFirstChild("BuildingTool")
+    -- Find BuildingTool and ScalingTool
+    local placeTool = character:FindFirstChild("BuildingTool") or player:FindFirstChild("Backpack"):FindFirstChild("BuildingTool")
+    local scaleTool = character:FindFirstChild("ScalingTool") or player:FindFirstChild("Backpack"):FindFirstChild("ScalingTool")
     
     if not placeTool then
         log("ERROR: BuildingTool not found")
         return
     end
     
+    if not scaleTool then
+        log("ERROR: ScalingTool not found")
+        return
+    end
+    
     local placeRF = placeTool:FindFirstChild("RF")
+    local scaleRF = scaleTool:FindFirstChild("RF")
     
     if not placeRF then
         log("ERROR: BuildingTool.RF not found")
         return
     end
     
-    log("Found BuildingTool.RF")
+    if not scaleRF then
+        log("ERROR: ScalingTool.RF not found")
+        return
+    end
     
-    -- Find a zone to place blocks
+    log("Found BuildingTool.RF and ScalingTool.RF")
+    
+    -- Find zone
     local zone = workspace:FindFirstChild("WhiteZone") or workspace:FindFirstChild("BlackZone")
     
     if not zone then
-        log("ERROR: No zone found (WhiteZone/BlackZone)")
+        log("ERROR: No zone found")
         return
     end
     
     log("Found zone: " .. zone.Name)
     
-    -- Find first available block name
+    -- Get player's blocks folder
     local blocksFolder = workspace:FindFirstChild("Blocks")
     if not blocksFolder then
         log("ERROR: Blocks folder not found")
@@ -476,72 +483,122 @@ local function createBlocksWithPlaceRF()
         return
     end
     
-    -- Find first block
-    local targetBlockName = nil
-    local targetBlockID = nil
+    -- Find a block to use
+    local targetBlockName = "NeonBlock"
+    local targetBlockID = getBlockID(targetBlockName)
     
+    if targetBlockID == 0 then
+        -- Try to find any block
+        for _, block in pairs(playerBlocks:GetChildren()) do
+            if block:IsA("Model") then
+                targetBlockName = block.Name
+                targetBlockID = getBlockID(block.Name)
+                break
+            end
+        end
+    end
+    
+    if targetBlockID == 0 then
+        log("ERROR: No blocks available")
+        log("Please buy at least 1 block first")
+        return
+    end
+    
+    log("Using block: " .. targetBlockName .. " (ID: " .. targetBlockID .. ")")
+    
+    -- Step 1: Create 1 block
+    log("Step 1: Creating 1 block...")
+    
+    local blockCFrame = rootPart.CFrame * CFrame.new(0, 0, -10)
+    local secondaryCFrame = blockCFrame * CFrame.new(0, 0, 5)
+    
+    local success = pcall(function()
+        placeRF:InvokeServer(
+            targetBlockName,
+            targetBlockID,
+            zone,
+            blockCFrame,
+            true,
+            secondaryCFrame,
+            false
+        )
+    end)
+    
+    if not success then
+        log("ERROR: Failed to create block")
+        return
+    end
+    
+    log("Block created successfully!")
+    wait(1)
+    
+    -- Find the created block
+    local createdBlock = nil
     for _, block in pairs(playerBlocks:GetChildren()) do
-        if block:IsA("Model") then
-            targetBlockName = block.Name
-            targetBlockID = getBlockID(block.Name)
+        if block.Name == targetBlockName and block:IsA("Model") then
+            createdBlock = block
             break
         end
     end
     
-    if not targetBlockName then
-        log("ERROR: No blocks found to copy")
-        log("Please place at least 1 block first")
+    if not createdBlock then
+        log("ERROR: Created block not found")
         return
     end
     
-    log("Found block to copy: " .. targetBlockName)
-    log("Block ID: " .. targetBlockID)
+    log("Found created block: " .. createdBlock.Name)
     
-    -- Create blocks using placeRF with correct arguments
-    local created = 0
-    local basePosition = rootPart.CFrame * CFrame.new(0, 5, -10)
+    -- Step 2: Scale block to huge size
+    log("Step 2: Scaling block to huge size...")
     
-    for i = 1, 50 do
-        pcall(function()
-            local offset = CFrame.new(
-                (i % 10) * 3,
-                math.floor(i / 10) * 2,
-                math.floor(i / 5) * 3
-            )
-            
-            local mainCFrame = basePosition * offset
-            local secondaryCFrame = mainCFrame * CFrame.new(0, 0, 5)
-            
-            -- placeRF:InvokeServer with 7 arguments
-            placeRF:InvokeServer(
-                targetBlockName,      -- 1: block name
-                targetBlockID,        -- 2: block ID
-                zone,                 -- 3: zone (WhiteZone/BlackZone)
-                mainCFrame,           -- 4: main CFrame
-                true,                 -- 5: bool arg
-                secondaryCFrame,      -- 6: secondary CFrame
-                false                 -- 7: bool arg
-            )
-            
-            created = created + 1
-            
-            if i % 10 == 0 then
-                log("Created " .. created .. " blocks")
-                wait(0.3)
-            end
-        end)
-        
-        wait(0.15)
+    local hugeSize = Vector3.new(100, 100, 100)
+    local newCFrame = createdBlock:FindFirstChild("PPart") and createdBlock.PPart.CFrame or blockCFrame
+    
+    success = pcall(function()
+        scaleRF:InvokeServer(
+            createdBlock,
+            hugeSize,
+            newCFrame
+        )
+    end)
+    
+    if not success then
+        log("ERROR: Failed to scale block")
+        return
     end
     
-    log("Block creation complete! Created " .. created .. " blocks")
+    log("Block scaled to: " .. tostring(hugeSize))
+    log("This equals approximately " .. (100 * 100 * 100) .. " small blocks!")
+    
+    -- Step 3: Scale again for even more blocks
+    log("Step 3: Scaling again for more blocks...")
+    
+    local evenBiggerSize = Vector3.new(200, 100, 200)
+    
+    wait(0.5)
+    
+    success = pcall(function()
+        scaleRF:InvokeServer(
+            createdBlock,
+            evenBiggerSize,
+            newCFrame
+        )
+    end)
+    
+    if success then
+        log("Block scaled to: " .. tostring(evenBiggerSize))
+        log("This equals approximately " .. (200 * 100 * 200) .. " small blocks!")
+    end
+    
+    log("Infinite Block creation complete!")
+    log("You now have a massive block that counts as millions of blocks!")
 end
 
 local function toggleInfBlocks(enabled)
     settings.infBlocks = enabled
     if enabled then
-        log("Infinite Blocks enabled - running creation")
-        spawn(createBlocksWithPlaceRF)
+        log("Infinite Blocks enabled - creating huge block")
+        spawn(createInfiniteBlock)
     else
         log("Infinite Blocks disabled")
     end
@@ -558,9 +615,9 @@ createToggle(playerTab.content, "Infinite Jump", toggleInfiniteJump)
 
 -- Inf Blocks tab
 local infoLabel = Instance.new("TextLabel")
-infoLabel.Size = UDim2.new(1, 0, 0, 120)
+infoLabel.Size = UDim2.new(1, 0, 0, 140)
 infoLabel.BackgroundColor3 = colors.button
-infoLabel.Text = "[INFO] Infinite Blocks Method\n\nBased on correct placeRF arguments (7 params).\n\nIMPORTANT: You need to place at least 1 block first!\nThe script will create 50 copies around you.\n\nCheck Debug tab for detailed logs."
+infoLabel.Text = "[INFO] Infinite Blocks Method\n\nCreates 1 block and scales it to HUGE size!\nOne 200x100x200 block = 4,000,000 small blocks!\n\nIMPORTANT: You need to have at least 1 block in inventory!\nThe script will create and scale it automatically.\n\nCheck Debug tab for detailed logs."
 infoLabel.TextColor3 = colors.textDim
 infoLabel.TextSize = 12
 infoLabel.Font = Enum.Font.Gotham
@@ -573,8 +630,8 @@ local infoCorner = Instance.new("UICorner")
 infoCorner.CornerRadius = UDim.new(0, 8)
 infoCorner.Parent = infoLabel
 
-createToggle(blocksTab.content, "Infinite Blocks (placeRF)", toggleInfBlocks)
-createButton(blocksTab.content, "Create Blocks Once", createBlocksWithPlaceRF)
+createToggle(blocksTab.content, "Infinite Blocks (Create + Scale)", toggleInfBlocks)
+createButton(blocksTab.content, "Create Infinite Block", createInfiniteBlock)
 
 -- Debug tab
 local debugTextBox = Instance.new("TextBox")
@@ -631,8 +688,7 @@ end)
 -- Initialize
 switchTab(playerTab)
 
-log("ZeroHub v1.7 loaded!")
-log("Fixed: Correct placeRF arguments (7 params)")
-log("Arguments: blockName, blockID, zone, cframe1, true, cframe2, false")
-log("Infinite Blocks creates 50 copies of your block")
-log("Place at least 1 block before using Inf Blocks")
+log("ZeroHub v1.8 loaded!")
+log("Method: Create 1 block + Scale to huge size")
+log("Creates massive block = millions of small blocks")
+log("You need at least 1 block in inventory")
