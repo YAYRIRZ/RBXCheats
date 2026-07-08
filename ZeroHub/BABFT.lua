@@ -575,88 +575,84 @@ local function farmLoop()
         if not boatStages then
             log("ERROR: BoatStages folder not found")
             task.wait(2)
-            continue
-        end
-        
-        local normalStages = boatStages:FindFirstChild("NormalStages")
-        if not normalStages then
-            log("ERROR: NormalStages folder not found")
-            task.wait(2)
-            continue
-        end
-        
-        log("Found BoatStages/NormalStages")
-        
-        -- Go through all stages
-        for i = 1, 10 do
-            if not settings.autoFarm then break end
-            
-            local stageName = "CaveStage" .. i
-            local stage = normalStages:FindFirstChild(stageName)
-            
-            if not stage then
-                log("WARNING: " .. stageName .. " not found")
-                continue
-            end
-            
-            local darknessPart = stage:FindFirstChild("DarknessPart")
-            if not darknessPart then
-                log("WARNING: DarknessPart not found in " .. stageName)
-                continue
-            end
-            
-            -- Check if character is still alive
-            if not isAlive(char) then
-                log("Character died, waiting for respawn...")
-                repeat
-                    task.wait(0.1)
-                until not settings.autoFarm or isAlive(player.Character)
-                
-                if not settings.autoFarm then break end
-                char = player.Character
-                applyGodMode(char)
-            end
-            
-            -- Teleport to stage
-            log("Teleporting to " .. stageName)
-            char.HumanoidRootPart.CFrame = darknessPart.CFrame
-            
-            -- Wait for teleport delay
-            task.wait(settings.teleportDelay)
-        end
-        
-        if not settings.autoFarm then break end
-        
-        -- Go to the end (GoldenChest)
-        log("Teleporting to TheEnd (GoldenChest)...")
-        local theEnd = normalStages:FindFirstChild("TheEnd")
-        if theEnd then
-            local goldenChest = theEnd:FindFirstChild("GoldenChest")
-            if goldenChest then
-                local trigger = goldenChest:FindFirstChild("Trigger")
-                if trigger then
-                    if isAlive(char) then
-                        char.HumanoidRootPart.CFrame = trigger.CFrame
-                        
-                        -- Wait until day time changes (indicates chest claimed)
-                        local startClockTime = Lighting.ClockTime
-                        local waitStart = tick()
-                        
-                        repeat
-                            task.wait(0.1)
-                            if not settings.autoFarm or not isAlive(player.Character) then break end
-                        until Lighting.ClockTime ~= startClockTime or (tick() - waitStart) > 10
-                        
-                        log("GoldenChest trigger activated")
-                    end
-                else
-                    log("WARNING: Trigger not found in GoldenChest")
-                end
-            else
-                log("WARNING: GoldenChest not found in TheEnd")
-            end
         else
-            log("WARNING: TheEnd not found in NormalStages")
+            local normalStages = boatStages:FindFirstChild("NormalStages")
+            if not normalStages then
+                log("ERROR: NormalStages folder not found")
+                task.wait(2)
+            else
+                log("Found BoatStages/NormalStages")
+                
+                -- Go through all stages
+                for i = 1, 10 do
+                    if not settings.autoFarm then break end
+                    
+                    local stageName = "CaveStage" .. i
+                    local stage = normalStages:FindFirstChild(stageName)
+                    
+                    if not stage then
+                        log("WARNING: " .. stageName .. " not found")
+                    else
+                        local darknessPart = stage:FindFirstChild("DarknessPart")
+                        if not darknessPart then
+                            log("WARNING: DarknessPart not found in " .. stageName)
+                        else
+                            -- Check if character is still alive
+                            if not isAlive(char) then
+                                log("Character died, waiting for respawn...")
+                                repeat
+                                    task.wait(0.1)
+                                until not settings.autoFarm or isAlive(player.Character)
+                                
+                                if not settings.autoFarm then break end
+                                char = player.Character
+                                applyGodMode(char)
+                            end
+                            
+                            -- Teleport to stage
+                            log("Teleporting to " .. stageName)
+                            char.HumanoidRootPart.CFrame = darknessPart.CFrame
+                            
+                            -- Wait for teleport delay
+                            task.wait(settings.teleportDelay)
+                        end
+                    end
+                end
+                
+                if settings.autoFarm then
+                    -- Go to the end (GoldenChest)
+                    log("Teleporting to TheEnd (GoldenChest)...")
+                    local theEnd = normalStages:FindFirstChild("TheEnd")
+                    if theEnd then
+                        local goldenChest = theEnd:FindFirstChild("GoldenChest")
+                        if goldenChest then
+                            local trigger = goldenChest:FindFirstChild("Trigger")
+                            if trigger then
+                                if isAlive(char) then
+                                    char.HumanoidRootPart.CFrame = trigger.CFrame
+                                    
+                                    -- Wait until day time changes (indicates chest claimed)
+                                    local startClockTime = Lighting.ClockTime
+                                    local waitStart = tick()
+                                    
+                                    repeat
+                                        task.wait(0.1)
+                                        if not settings.autoFarm or not isAlive(player.Character) then break end
+                                    until Lighting.ClockTime ~= startClockTime or (tick() - waitStart) > 10
+                                    
+                                    log("GoldenChest trigger activated")
+                                end
+                            else
+                                log("WARNING: Trigger not found in GoldenChest")
+                            end
+                        else
+                            log("WARNING: GoldenChest not found in TheEnd")
+                        end
+                    else
+                        log("WARNING: TheEnd not found in NormalStages")
+                    end
+                end
+            end
         end
         
         if not settings.autoFarm then break end
